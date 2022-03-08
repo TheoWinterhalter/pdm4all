@@ -22,3 +22,30 @@ ND:
 let x = choose l in
 assert (x `memP` l)
 ```
+
+## Description of the files
+
+The Coq development is all in `theories`.
+
+### General construction
+
+- `structures.v` contains definitions of monads, Dijkstra monads, monad
+transformers…
+- `guarded.v` describes the partiality monad.
+- `PURE.v` proposes a simple encoding of F*'s `PURE` effect.
+- `PDM.v` contains the general partial Dijkstra monad construction.
+
+### Special cases
+
+- `GuardedPDM.v` proposes a construction of partial DM from a monad without
+asserts.
+- `DM4Free.v` makes the Dijkstra monads for free work fit in the current
+framework.
+
+### Examples
+
+- `StateSpec.v`: Specification monad for state.
+- `State.v`: State using the state monad (equivalent to `DM4FreeState.v`)
+- `StateFree.v`: State defined with a free monad.
+- `DM4FreeState.v`: State using DM4Free construction.
+- `ND.v`: Non-determinism.
