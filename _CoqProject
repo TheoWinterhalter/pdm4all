@@ -1,0 +1,19 @@
+-Q theories PDM
+
+theories/util.v
+theories/structures.v
+
+theories/guarded.v
+theories/PURE.v
+theories/PDM.v
+
+# Special cases
+theories/GuardedPDM.v
+theories/DM4Free.v
+
+# Examples
+theories/StateSpec.v
+theories/State.v
+theories/StateFree.v
+theories/ND.v
+theories/DM4FreeState.v
