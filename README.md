@@ -41,6 +41,8 @@ transformers…
 asserts.
 - `DM4Free.v` makes the Dijkstra monads for free work fit in the current
 framework.
+- `FreePDM.v`: get a partial Dijkstra monad from a free monad signature and
+a specification monad.
 
 ### Examples
 

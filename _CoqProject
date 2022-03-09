@@ -10,6 +10,7 @@ theories/PDM.v
 # Special cases
 theories/GuardedPDM.v
 theories/DM4Free.v
+theories/FreePDM.v
 
 # Examples
 theories/StateSpec.v
