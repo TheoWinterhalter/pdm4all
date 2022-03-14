@@ -2,6 +2,8 @@
 
 From Coq Require Import Utf8 RelationClasses List.
 From PDM Require Import util structures guarded PURE GuardedPDM.
+From Equations Require Import Equations.
+Require Equations.Prop.DepElim.
 
 Import ListNotations.
 
@@ -18,6 +20,8 @@ Inductive M A :=
 | act_iterᴹ (J B : Type) (f : J → M (J + B)%type) (i : J) (k : B → M A).
 (* | act_fixᴹ (D C : Type) (F : (D → C) → (D → M C)) (i : D) (k : C → M A). *)
 (* | act_fixᴹ (C : Type) (F : C → M C) (k : C → M A). *)
+
+Derive NoConfusion for M.
 
 Arguments retᴹ [_].
 Arguments act_reqᴹ [_].
@@ -86,6 +90,8 @@ Inductive red {A} : M A → M A → Prop :=
 
 where "u ▹ v" := (red u v).
 
+Derive Signature for red.
+
 (* Finite reduction sequence *)
 Reserved Notation "u ▹* v" (at level 80).
 
@@ -95,9 +101,33 @@ Inductive finred [A] : M A → M A → Prop :=
 
 where "u ▹* v" := (finred u v).
 
+Derive Signature for finred.
+
 (* Infinite reduction sequence *)
 Definition infred [A] (s : nat → M A) :=
   ∀ n, s n ▹ s (S n).
+
+(* Lemmas about reduction *)
+
+Lemma ret_red_inv :
+  ∀ A (x : A) c,
+    ret x ▹ c →
+    False.
+Proof.
+  intros A x c h.
+  depelim h.
+Qed.
+
+Lemma ret_finred_inv :
+  ∀ A (x : A) c,
+    ret x ▹* c →
+    c = ret x.
+Proof.
+  intros A x c h.
+  depelim h.
+  - reflexivity.
+  - exfalso. eapply ret_red_inv. eassumption.
+Qed.
 
 (** Specifiation monad *)
 
@@ -254,9 +284,13 @@ Proof.
   - intros A x.
     intros P h. simpl. simpl in h. red in h.
     split. 2: split.
-    + intros pre k hr. (* Impossible hr *) admit.
-    + intros y hr. (* Inversion: x = y *) admit.
-    + intros s hs hs0. (* Inversion again *) admit.
+    + intros pre k hr.
+      apply ret_finred_inv in hr. noconf hr.
+    + intros y hr. apply ret_finred_inv in hr. noconf hr.
+      assumption.
+    + intros s hs hs0.
+      pose proof (hs 0) as hr. rewrite hs0 in hr.
+      apply ret_red_inv in hr. exfalso. assumption.
   - intros A B c f.
     intros P h. simpl. simpl in h. red in h.
     split. 2: split.

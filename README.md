@@ -3,7 +3,11 @@
 Construction of partial Dijkstra monads using the Dijkstra monads for all
 construction.
 
-Should work fine with Coq 8.14. Just build with `make`.
+## Requirements and build
+
+Should work fine with Coq 8.14 and Equations 1.3.
+
+Just build with `make`.
 
 ## Motivation: Examples of partiality in F*
 
