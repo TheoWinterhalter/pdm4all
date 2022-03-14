@@ -235,3 +235,32 @@ Definition θ' [A] (c : M A) : W' A :=
     (∀ pre k, c ▹* act_reqᴹ pre k → pre) ∧
     (∀ x, c ▹* ret x → post (cnv x)) ∧
     (∀ s, infred s → s 0 = c → post div).
+
+#[export] Instance θ_ismono : ∀ A (c : M A), Monotonous (θ' c).
+Proof.
+  intros A c. intros P Q hPQ h.
+  split. 2: split.
+  - apply h.
+  - intros x hx. apply hPQ. apply h. apply hx.
+  - intros s hs hs0. apply hPQ. eapply h. all: eassumption.
+Qed.
+
+Definition θ [A] (c : M A) : W A :=
+  as_wp (θ' c).
+
+#[export] Instance θ_lax : LaxMorphism θ.
+Proof.
+  constructor.
+  - intros A x.
+    intros P h. simpl. simpl in h. red in h.
+    split. 2: split.
+    + intros pre k hr. (* Impossible hr *) admit.
+    + intros y hr. (* Inversion: x = y *) admit.
+    + intros s hs hs0. (* Inversion again *) admit.
+  - intros A B c f.
+    intros P h. simpl. simpl in h. red in h.
+    split. 2: split.
+    + intros pre k hr. admit.
+    + intros x hr. admit.
+    + intros s hs hs0. admit.
+Admitted.
