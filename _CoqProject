@@ -18,3 +18,4 @@ theories/State.v
 theories/StateFree.v
 theories/ND.v
 theories/DM4FreeState.v
+theories/Div.v
