@@ -211,25 +211,37 @@ Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
 Lemma iter_finred_ret_inv :
   ∀ A J B f i k (x : A),
     act_iterᴹ J B f i k ▹* ret x →
+    (∀ (j : J) C (g : J + B → M C) (z : C),
+      bind (f j) g ▹* ret z →
+      ∃ y, f j ▹* ret y ∧ g y ▹* ret z
+    ) →
     ∃ y, iter_seq f i y ∧ k y ▹* ret x.
 Proof.
-  intros A J B f i k x h.
+  intros A J B f i k x h hf.
   depind h.
   lazymatch goal with
   | H : _ ▹ _ |- _ => rename H into hr
   end.
   depelim hr.
   unfold iter_one in h. rewrite assoc in h.
-  (* Seems like we need the property on bind here...
-    Maybe we can take the ih on f as assumption here. The one from
-    the proof below.
+  apply hf in h.
+  (* IHh is not usable as such, it should be generalised to any
+    c such that act_iterᴹ J B f i k ▹* c ▹* ret x
+    (with or without star on the left?)
+
+    Merely applying bind_finred_ret won't work because we don't know it's a
+    sub-reduction sequence (here it's the case, but IO it won't).
+
+    Would it be easier to show a lemma without ret?
+    Like bind c f ▹* u means either c ▹* c' and u = bind c' f
+    or c ▹* ret x and f x ▹* u
   *)
 Abort.
 
 Lemma bind_finred_ret_inv :
   ∀ A B c f x,
     bind (A:=A) (B:=B) c f ▹* ret x →
-    (bind c f = ret x) ∨
+    (bind c f = ret x) ∨ (* TODO: Entailed by the other? *)
     (∃ y, c ▹* ret y ∧ f y ▹* ret x).
 Proof.
   intros A B c f x h.
