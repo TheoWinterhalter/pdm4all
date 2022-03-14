@@ -241,41 +241,23 @@ Abort.
 Lemma bind_finred_ret_inv :
   ∀ A B c f x,
     bind (A:=A) (B:=B) c f ▹* ret x →
-    (bind c f = ret x) ∨ (* TODO: Entailed by the other? *)
-    (∃ y, c ▹* ret y ∧ f y ▹* ret x).
+    ∃ y, c ▹* ret y ∧ f y ▹* ret x.
 Proof.
   intros A B c f x h.
   induction c as [A y | A p k ih | A J C g ihg i k ih] in B, f, x, h |- *.
-  - simpl in h. right.
+  - simpl in h.
     exists y. split.
     + constructor.
     + exact h.
-  - right.
-    simpl in h. apply req_finred_ret_inv in h. destruct h as [hp h].
-    apply ih in h. destruct h as [h|h].
-    + apply bind_ret_inv in h. destruct h as [y [e1 e2]].
-      exists y. split.
-      * econstructor. 1: constructor.
-        erewrite e1. constructor.
-      * rewrite e2. constructor.
-    + destruct h as [y [h1 h2]].
-      exists y. split.
-      * econstructor. 2: exact h1.
-        constructor.
-      * assumption.
-  - right.
-    simpl in h. apply iter_finred_ret_inv_step in h.
+  - simpl in h. apply req_finred_ret_inv in h. destruct h as [hp h].
+    apply ih in h. destruct h as [y [h1 h2]].
+    exists y. split.
+    + econstructor. 2: exact h1.
+      constructor.
+    + assumption.
+  - simpl in h. apply iter_finred_ret_inv_step in h.
     unfold iter_one in h. rewrite assoc in h.
-    apply ihg in h. destruct h as [h | [[] []]].
-    + apply bind_ret_inv in h. destruct h as [y [e1 e2]].
-      destruct y. 1: noconf e2.
-      simpl in e2. apply bind_ret_inv in e2.
-      destruct e2 as [y [e2 e3]].
-      exists y. split.
-      * econstructor. 1: constructor.
-        unfold iter_one. rewrite e1. simpl.
-        rewrite e2. constructor.
-      * rewrite e3. constructor.
+    apply ihg in h. destruct h as [[] []].
     + simpl in *. (* We did not make progress *)
 Admitted.
 
