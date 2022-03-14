@@ -1,4 +1,4 @@
-(* Non-termination *)
+(*** Non-termination *)
 
 From Coq Require Import Utf8 RelationClasses List.
 From PDM Require Import util structures guarded PURE GuardedPDM.
@@ -9,6 +9,8 @@ Set Default Goal Selector "!".
 Set Printing Projections.
 Set Universe Polymorphism.
 Unset Universe Minimization ToSet.
+
+(** Syntax monad *)
 
 Inductive M A :=
 | retᴹ (x : A)
@@ -49,6 +51,8 @@ Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
 Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) :=
   act_iterᴹ J A f i (λ x, ret x).
 
+(** Evaluation relation *)
+
 Definition iter_one [J A] (f : J → M (J + A)) (i : J) :=
   bind (f i) (λ x,
     match x with
@@ -81,3 +85,132 @@ Inductive red {A} : M A → M A → Prop :=
       act_iterᴹ J B f i k ▹ bind (iter_one f i) k
 
 where "u ▹ v" := (red u v).
+
+(** Specifiation monad *)
+
+Inductive run A :=
+| cnv (x : A)
+| div.
+
+Arguments cnv [_].
+Arguments div {_}.
+
+Definition preᵂ := Prop.
+Definition postᵂ A := run A → Prop.
+
+Definition W' A := postᵂ A → preᵂ.
+
+Class Monotonous [A] (w : W' A) :=
+  ismono : ∀ (P Q : postᵂ A), (∀ x, P x → Q x) → w P → w Q.
+
+Definition W A := { w : W' A | Monotonous w }.
+
+Definition as_wp [A] (w : W' A) `{h : Monotonous _ w} : W A :=
+  exist _ w h.
+
+Definition retᵂ' [A] (x : A) : W' A :=
+  λ P, P (cnv x).
+
+#[export] Instance retᵂ_ismono [A] (x : A) : Monotonous (retᵂ' x).
+Proof.
+  intros P Q hPQ h.
+  apply hPQ. apply h.
+Qed.
+
+Definition retᵂ [A] (x : A) : W A :=
+  as_wp (retᵂ' x).
+
+Definition bindᵂ' [A B] (w : W A) (wf : A → W B) : W' B :=
+  λ P,
+    val w (λ r,
+      match r with
+      | cnv x => val (wf x) P
+      | div => P div
+      end
+    ).
+
+#[export] Instance bindᵂ_ismono [A B] (w : W A) (wf : A → W B) :
+  Monotonous (bindᵂ' w wf).
+Proof.
+  destruct w as [w mw].
+  intros P Q hPQ h.
+  eapply mw. 2: exact h.
+  simpl. intros [x|] hf.
+  - destruct (wf x) as [wf' mwf].
+    eapply mwf. 2: exact hf.
+    assumption.
+  - apply hPQ. assumption.
+Qed.
+
+Definition bindᵂ [A B] (w : W A) (wf : A → W B) : W B :=
+  as_wp (bindᵂ' w wf).
+
+Definition reqᵂ' (p : Prop) : W' p :=
+  λ P, ∃ (h : p), P (cnv h).
+
+#[export] Instance reqᵂ_ismono : ∀ p, Monotonous (reqᵂ' p).
+Proof.
+  intros p. intros P Q hPQ h.
+  destruct h as [hp h].
+  exists hp. apply hPQ. assumption.
+Qed.
+
+Definition reqᵂ (p : Prop) : W p :=
+  as_wp (reqᵂ' p).
+
+#[export] Instance Monad_W : Monad W := {|
+  ret := retᵂ ;
+  bind := bindᵂ
+|}.
+
+#[export] Instance ReqMonad_W : ReqMonad W := {|
+  req := reqᵂ
+|}.
+
+Definition wle [A] (w₀ w₁ : W A) : Prop :=
+  ∀ P, val w₁ P → val w₀ P.
+
+#[export] Instance WStOrder : Order W.
+Proof.
+  exists wle.
+  intros A x y z h₁ h₂. intros P h.
+  apply h₁. apply h₂.
+  assumption.
+Defined.
+
+#[export] Instance WStMono : MonoSpec W.
+Proof.
+  constructor.
+  intros A B w w' wf wf' hw hwf.
+  intros P h.
+  hnf. hnf in h.
+  apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
+  simpl. intros [x|] hf.
+  - apply hwf. assumption.
+  - assumption.
+Qed.
+
+Definition liftᵂ [A] (w : pure_wp A) : W A.
+Proof.
+  exists (λ P, val w (λ x, P (cnv x))).
+  intros P Q hPQ h.
+  destruct w as [w mw].
+  eapply mw. 2: exact h.
+  simpl. intros x. apply hPQ.
+Defined.
+
+#[export] Instance hlift : PureSpec W WStOrder liftᵂ.
+Proof.
+  constructor.
+  intros A w f.
+  intros P h.
+  assert (hpre : val w (λ _, True)).
+  { unfold liftᵂ in h.
+    destruct w as [w hw].
+    eapply hw. 2: exact h.
+    auto.
+  }
+  cbv. exists hpre.
+  pose proof (prf (f hpre)) as hf. simpl in hf.
+  apply hf in h. assumption.
+Qed.
