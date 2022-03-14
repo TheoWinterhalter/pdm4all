@@ -55,6 +55,21 @@ Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
 Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) :=
   act_iterᴹ J A f i (λ x, ret x).
 
+#[export] Instance M_laws : MonadLaws M.
+Proof.
+  constructor.
+  - intros A B x f. reflexivity.
+  - intros A c. induction c.
+    + reflexivity.
+    + simpl. f_equal. extensionality h. auto.
+    + simpl. f_equal. extensionality x. auto.
+  - intros A B C c f g.
+    induction c.
+    + simpl. reflexivity.
+    + simpl. f_equal. extensionality h. auto.
+    + simpl. f_equal. extensionality h. auto.
+Qed.
+
 (** Evaluation relation *)
 
 Definition iter_one [J A] (f : J → M (J + A)) (i : J) :=
