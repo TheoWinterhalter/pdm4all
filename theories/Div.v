@@ -86,6 +86,19 @@ Inductive red {A} : M A → M A → Prop :=
 
 where "u ▹ v" := (red u v).
 
+(* Finite reduction sequence *)
+Reserved Notation "u ▹* v" (at level 80).
+
+Inductive finred [A] : M A → M A → Prop :=
+| finred_id : ∀ c, c ▹* c
+| finred_step : ∀ x y z, x ▹ y → y ▹* z → x ▹* z
+
+where "u ▹* v" := (finred u v).
+
+(* Infinite reduction sequence *)
+Definition infred [A] (s : nat → M A) :=
+  ∀ n, s n ▹ s (S n).
+
 (** Specifiation monad *)
 
 Inductive run A :=
@@ -214,3 +227,11 @@ Proof.
   pose proof (prf (f hpre)) as hf. simpl in hf.
   apply hf in h. assumption.
 Qed.
+
+(** Effect observation *)
+
+Definition θ' [A] (c : M A) : W' A :=
+  λ post,
+    (∀ pre k, c ▹* act_reqᴹ pre k → pre) ∧
+    (∀ x, c ▹* ret x → post (cnv x)) ∧
+    (∀ s, infred s → s 0 = c → post div).
