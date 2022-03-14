@@ -222,8 +222,18 @@ Proof.
       * assumption.
   - right.
     simpl in h. apply iter_finred_ret_inv in h.
-    unfold iter_one in h.
-    (* Will assoc save me? *)
+    unfold iter_one in h. rewrite assoc in h.
+    apply ihg in h. destruct h as [h | [[] []]].
+    + apply bind_ret_inv in h. destruct h as [y [e1 e2]].
+      destruct y. 1: noconf e2.
+      simpl in e2. apply bind_ret_inv in e2.
+      destruct e2 as [y [e2 e3]].
+      exists y. split.
+      * econstructor. 1: constructor.
+        unfold iter_one. rewrite e1. simpl.
+        rewrite e2. constructor.
+      * rewrite e3. constructor.
+    + simpl in *. (* We did not make progress *)
 Admitted.
 
 (** Specifiation monad *)
