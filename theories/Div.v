@@ -129,6 +129,88 @@ Proof.
   - exfalso. eapply ret_red_inv. eassumption.
 Qed.
 
+Lemma req_red_inv :
+  ∀ A (pre : Prop) (k : pre → M A) c,
+    act_reqᴹ pre k ▹ c →
+    ∃ (h : pre), c = k h.
+Proof.
+  intros A pre k c h.
+  depelim h.
+  eexists. reflexivity.
+Qed.
+
+Lemma req_finred_ret_inv :
+  ∀ A (pre : Prop) (k : pre → M A) x,
+    act_reqᴹ pre k ▹* ret x →
+    ∃ (h : pre), k h ▹* ret x.
+Proof.
+  intros A pre k x h.
+  depelim h.
+  lazymatch goal with
+  | H : act_reqᴹ _ _ ▹ _ |- _ => rename H into hr
+  end.
+  apply req_red_inv in hr. destruct hr as [hpre e]. subst.
+  exists hpre. assumption.
+Qed.
+
+(* Not directly about red *)
+Lemma bind_ret_inv :
+  ∀ A B (c : M A) (f : A → M B) x,
+    bind c f = ret x →
+    ∃ y, c = ret y ∧ f y = ret x.
+Proof.
+  intros A B c f x e.
+  destruct c as [y | |]. all: simpl in e. 2-3: noconf e.
+  exists y. split.
+  - reflexivity.
+  - assumption.
+Qed.
+
+Lemma iter_finred_ret_inv :
+  ∀ A J B f i k (x : A),
+    act_iterᴹ J B f i k ▹* ret x →
+    bind (iter_one f i) k ▹* ret x.
+Proof.
+  intros A J B f i k x h.
+  depelim h.
+  lazymatch goal with
+  | H : _ ▹ _ |- _ => rename H into hr
+  end.
+  depelim hr.
+  assumption.
+Qed.
+
+Lemma bind_finred_ret_inv :
+  ∀ A B c f x,
+    bind (A:=A) (B:=B) c f ▹* ret x →
+    (bind c f = ret x) ∨
+    (∃ y, c ▹* ret y ∧ f y ▹* ret x).
+Proof.
+  intros A B c f x h.
+  induction c as [A y | A p k ih | A J C g ihg i k ih] in B, f, x, h |- *.
+  - simpl in h. right.
+    exists y. split.
+    + constructor.
+    + exact h.
+  - right.
+    simpl in h. apply req_finred_ret_inv in h. destruct h as [hp h].
+    apply ih in h. destruct h as [h|h].
+    + apply bind_ret_inv in h. destruct h as [y [e1 e2]].
+      exists y. split.
+      * econstructor. 1: constructor.
+        erewrite e1. constructor.
+      * rewrite e2. constructor.
+    + destruct h as [y [h1 h2]].
+      exists y. split.
+      * econstructor. 2: exact h1.
+        constructor.
+      * assumption.
+  - right.
+    simpl in h. apply iter_finred_ret_inv in h.
+    unfold iter_one in h.
+    (* Will assoc save me? *)
+Admitted.
+
 (** Specifiation monad *)
 
 Inductive run A :=
