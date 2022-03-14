@@ -1,6 +1,6 @@
 (*** Non-termination *)
 
-From Coq Require Import Utf8 RelationClasses List.
+From Coq Require Import Utf8 RelationClasses List PropExtensionality.
 From PDM Require Import util structures guarded PURE GuardedPDM.
 From Equations Require Import Equations.
 Require Equations.Prop.DepElim.
@@ -12,6 +12,14 @@ Set Printing Projections.
 Set Universe Polymorphism.
 Unset Universe Minimization ToSet.
 
+Set Equations With UIP.
+
+#[local] Instance UIP_all A : UIP A.
+Proof.
+  intros x y e e'.
+  apply proof_irrelevance.
+Qed.
+
 (** Syntax monad *)
 
 Inductive M A :=
@@ -21,7 +29,7 @@ Inductive M A :=
 (* | act_fixᴹ (D C : Type) (F : (D → C) → (D → M C)) (i : D) (k : C → M A). *)
 (* | act_fixᴹ (C : Type) (F : C → M C) (k : C → M A). *)
 
-Derive NoConfusion for M.
+Derive NoConfusion NoConfusionHom for M.
 
 Arguments retᴹ [_].
 Arguments act_reqᴹ [_].
@@ -181,7 +189,7 @@ Proof.
   - assumption.
 Qed.
 
-Lemma iter_finred_ret_inv :
+Lemma iter_finred_ret_inv_step :
   ∀ A J B f i k (x : A),
     act_iterᴹ J B f i k ▹* ret x →
     bind (iter_one f i) k ▹* ret x.
@@ -194,6 +202,29 @@ Proof.
   depelim hr.
   assumption.
 Qed.
+
+(* Sequence of iterations starting in i and ending with value x *)
+Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
+| iter_seq1 : f i ▹* ret (inr x) → iter_seq f i x
+| iter_seq_step : ∀ j, f i ▹* ret (inl j) → iter_seq f j x → iter_seq f i x.
+
+Lemma iter_finred_ret_inv :
+  ∀ A J B f i k (x : A),
+    act_iterᴹ J B f i k ▹* ret x →
+    ∃ y, iter_seq f i y ∧ k y ▹* ret x.
+Proof.
+  intros A J B f i k x h.
+  depind h.
+  lazymatch goal with
+  | H : _ ▹ _ |- _ => rename H into hr
+  end.
+  depelim hr.
+  unfold iter_one in h. rewrite assoc in h.
+  (* Seems like we need the property on bind here...
+    Maybe we can take the ih on f as assumption here. The one from
+    the proof below.
+  *)
+Abort.
 
 Lemma bind_finred_ret_inv :
   ∀ A B c f x,
@@ -221,7 +252,7 @@ Proof.
         constructor.
       * assumption.
   - right.
-    simpl in h. apply iter_finred_ret_inv in h.
+    simpl in h. apply iter_finred_ret_inv_step in h.
     unfold iter_one in h. rewrite assoc in h.
     apply ihg in h. destruct h as [h | [[] []]].
     + apply bind_ret_inv in h. destruct h as [y [e1 e2]].
