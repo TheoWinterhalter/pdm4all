@@ -270,81 +270,20 @@ Proof.
         assumption.
 Qed.
 
-(* Sequence of iterations starting in i and ending with value x *)
-Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
-| iter_seq1 : f i ▹* ret (inr x) → iter_seq f i x
-| iter_seq_step : ∀ j, f i ▹* ret (inl j) → iter_seq f j x → iter_seq f i x.
-
-Lemma iter_finred_ret_inv :
-  ∀ A J B f i k (x : A),
-    act_iterᴹ J B f i k ▹* ret x →
-    (∀ (j : J) C (g : J + B → M C) (z : C),
-      bind (f j) g ▹* ret z →
-      ∃ y, f j ▹* ret y ∧ g y ▹* ret z
-    ) →
-    ∃ y, iter_seq f i y ∧ k y ▹* ret x.
-Proof.
-  intros A J B f i k x h hf.
-  depind h.
-  lazymatch goal with
-  | H : _ ▹ _ |- _ => rename H into hr
-  end.
-  depelim hr.
-  unfold iter_one in h. rewrite assoc in h.
-  apply hf in h. destruct h as [[j | y] [h1 h2]].
-  - simpl in h2. give_up.
-  -
-
-  (* IHh is not usable as such, it should be generalised to any
-    c such that act_iterᴹ J B f i k ▹* c ▹* ret x
-    (with or without star on the left?)
-
-    Merely applying bind_finred_ret won't work because we don't know it's a
-    sub-reduction sequence (here it's the case, but IO it won't).
-
-    Would it be easier to show a lemma without ret?
-    Like bind c f ▹* u means either c ▹* c' and u = bind c' f
-    or c ▹* ret x and f x ▹* u
-
-    Maybe prove something about the reductions of iter_one? Possibly
-    mutually.
-    Say c ▹* ret x → (c = iter → ...) ∧ (c = bind iter_one ...)
-    No dice.
-
-    Maybe it's best to have a relevant part in finred? Maybe move finred in
-    Type? Or just a list of intermediary terms (excluding boundaries).
-  *)
-Abort.
-
 Lemma bind_finred_ret_inv :
   ∀ A B c f x,
     bind (A:=A) (B:=B) c f ▹* ret x →
     ∃ y, c ▹* ret y ∧ f y ▹* ret x.
 Proof.
   intros A B c f x h.
-  induction c as [A y | A p k ih | A J C g ihg i k ih] in B, f, x, h |- *.
-  - simpl in h.
+  apply bind_finred_inv in h. destruct h as [[c' [h e]] | h].
+  - symmetry in e. apply bind_ret_inv in e.
+    destruct e as [y [e1 e2]]. subst.
     exists y. split.
-    + constructor.
-    + exact h.
-  - simpl in h. apply req_finred_ret_inv in h. destruct h as [hp h].
-    apply ih in h. destruct h as [y [h1 h2]].
-    exists y. split.
-    + econstructor. 2: exact h1.
-      constructor.
     + assumption.
-  - simpl in h. apply iter_finred_ret_inv_step in h.
-    unfold iter_one in h. rewrite assoc in h.
-    apply ihg in h. destruct h as [[j | y] [h1 h2]].
-    + simpl in h2. (* We did not make progress *) admit.
-    + simpl in h2. apply ih in h2.
-      destruct h2 as [z [h2 h3]].
-      exists z. split. 2: assumption.
-      econstructor. 1: constructor.
-      unfold iter_one. rewrite assoc.
-      eapply findred_trans. 1: eapply bind_finred. 1: eassumption.
-      simpl. assumption.
-Admitted.
+    + rewrite e2. constructor.
+  - assumption.
+Qed.
 
 Lemma bind_infred :
   ∀ A B c f s,
