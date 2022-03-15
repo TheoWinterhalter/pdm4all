@@ -105,9 +105,9 @@ where "u ▹* v" := (finred u v).
 
 Derive Signature for finred.
 
-(* Infinite reduction sequence *)
-Definition infred [A] (s : nat → M A) :=
-  ∀ n, s n ▹ s (S n).
+(* Infinite reduction sequence from c *)
+Definition infred [A] (s : nat → M A) (c : M A) :=
+  c ▹ s 0 ∧ ∀ n, s n ▹ s (S n).
 
 (* Lemmas about reduction *)
 
@@ -240,7 +240,10 @@ Proof.
   end.
   depelim hr.
   unfold iter_one in h. rewrite assoc in h.
-  apply hf in h.
+  apply hf in h. destruct h as [[j | y] [h1 h2]].
+  - simpl in h2. give_up.
+  -
+
   (* IHh is not usable as such, it should be generalised to any
     c such that act_iterᴹ J B f i k ▹* c ▹* ret x
     (with or without star on the left?)
@@ -256,6 +259,9 @@ Proof.
     mutually.
     Say c ▹* ret x → (c = iter → ...) ∧ (c = bind iter_one ...)
     No dice.
+
+    Maybe it's best to have a relevant part in finred? Maybe move finred in
+    Type? Or just a list of intermediary terms (excluding boundaries).
   *)
 Abort.
 
@@ -424,7 +430,7 @@ Definition θ' [A] (c : M A) : W' A :=
   λ post,
     (∀ pre k, c ▹* act_reqᴹ pre k → pre) ∧
     (∀ x, c ▹* ret x → post (cnv x)) ∧
-    (∀ s, infred s → s 0 = c → post div).
+    (∀ s, infred s c → post div).
 
 #[export] Instance θ_ismono : ∀ A (c : M A), Monotonous (θ' c).
 Proof.
@@ -432,7 +438,7 @@ Proof.
   split. 2: split.
   - apply h.
   - intros x hx. apply hPQ. apply h. apply hx.
-  - intros s hs hs0. apply hPQ. eapply h. all: eassumption.
+  - intros s hs. apply hPQ. eapply h. eassumption.
 Qed.
 
 Definition θ [A] (c : M A) : W A :=
@@ -448,13 +454,13 @@ Proof.
       apply ret_finred_inv in hr. noconf hr.
     + intros y hr. apply ret_finred_inv in hr. noconf hr.
       assumption.
-    + intros s hs hs0.
-      pose proof (hs 0) as hr. rewrite hs0 in hr.
+    + intros s hs.
+      destruct hs as [hr ?].
       apply ret_red_inv in hr. exfalso. assumption.
   - intros A B c f.
     intros P h. simpl. simpl in h. red in h.
     split. 2: split.
     + intros pre k hr. admit.
     + intros x hr. admit.
-    + intros s hs hs0. admit.
+    + intros s hs. admit.
 Admitted.
