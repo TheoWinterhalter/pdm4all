@@ -1,4 +1,4 @@
-From Coq Require Import Utf8 RelationClasses PropExtensionality.
+From Coq Require Import Utf8 RelationClasses PropExtensionality Classical_Prop.
 
 Set Default Goal Selector "!".
 Set Printing Projections.
@@ -50,4 +50,22 @@ Lemma sig_ext :
 Proof.
   intros A P u v e.
   destruct u, v. subst. f_equal. apply proof_irrelevance.
+Qed.
+
+Lemma classical_right :
+  ∀ (P Q : Prop),
+    (¬ P → Q) →
+    P ∨ Q.
+Proof.
+  intros P Q h.
+  classical_right. auto.
+Qed.
+
+Lemma not_exists_forall :
+  ∀ (A : Type) (P : A → Prop),
+    ¬ (∃ x, P x) →
+    ∀ x, ¬ P x.
+Proof.
+  intros A P h x hx.
+  apply h. exists x. apply hx.
 Qed.

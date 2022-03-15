@@ -295,6 +295,21 @@ Proof.
       simpl. assumption.
 Admitted.
 
+Lemma bind_infred :
+  ∀ A B c f s,
+    infred s (bind (A:=A) (B:=B) c f) →
+    (∃ s', infred s' c) ∨
+    (∃ x s', c ▹* ret x ∧ infred s' (f x)).
+Proof.
+  intros A B c f s h.
+  apply classical_right.
+  intro hc. (* eapply not_exists_forall in hc. *)
+  (* Need classical logic for this to say does not diverge means converges *)
+  (* Also will need the fact converges means to ret so in particular the
+    not stuck condition on c.
+  *)
+Abort.
+
 (** Specifiation monad *)
 
 Inductive run A :=
