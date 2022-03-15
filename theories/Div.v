@@ -256,23 +256,19 @@ Proof.
         econstructor. 2: exact h1.
         constructor.
     + simpl in hr. depelim hr.
-      unfold iter_one in ih. rewrite assoc in ih.
-      specialize ih with (1 := eq_refl). (* Maybe without the rewrite ih is better, or maybe I should have both?
-        like keep ih after applying.
-        If it fails, I might have to generalise the lemma to any number of bind
-        so I can strip two at once?
-      *)
-      destruct ih as [[c' [hr e]] | [[j|x] [h1 h2]]].
+      unfold iter_one in ih. change bindᴹ with bind in ih.
+      rewrite <- !assoc in ih.
+      specialize ih with (1 := eq_refl).
+      destruct ih as [[c' [hr e]] | [x [h1 h2]]].
       * subst. left.
-        eexists. split.
-        2:{ change bindᴹ with bind. rewrite <- !assoc. reflexivity. }
+        eexists. split. 2: reflexivity.
         econstructor. 1: constructor.
-        apply bind_finred. unfold iter_one.
-        apply bind_finred. assumption.
-      * give_up.
-        (* Did we apply ih to the wrong bind? *)
-      * simpl in h2. give_up.
-Admitted.
+        assumption.
+      * right. eexists. split. 2: exact h2.
+        econstructor. 1: constructor.
+        unfold iter_one. rewrite !assoc in h1. rewrite assoc.
+        assumption.
+Qed.
 
 (* Sequence of iterations starting in i and ending with value x *)
 Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
