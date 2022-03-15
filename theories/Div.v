@@ -109,6 +109,10 @@ Derive Signature for finred.
 Definition infred [A] (s : nat → M A) (c : M A) :=
   c ▹ s 0 ∧ ∀ n, s n ▹ s (S n).
 
+(* The term c is not stuck on any require *)
+Definition unstuck [A] (c : M A) :=
+  ∀ pre k, c ▹* act_reqᴹ pre k → pre.
+
 (* Lemmas about reduction *)
 
 Lemma ret_red_inv :
@@ -443,7 +447,7 @@ Qed.
 
 Definition θ' [A] (c : M A) : W' A :=
   λ post,
-    (∀ pre k, c ▹* act_reqᴹ pre k → pre) ∧
+    unstuck c ∧
     (∀ x, c ▹* ret x → post (cnv x)) ∧
     (∀ s, infred s c → post div).
 
