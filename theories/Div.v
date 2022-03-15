@@ -465,8 +465,13 @@ Proof.
       apply ret_red_inv in hr. exfalso. assumption.
   - intros A B c f.
     intros P h. simpl. simpl in h. red in h.
+    destruct h as [huc [hcnv hdiv]].
     split. 2: split.
     + intros pre k hr. admit.
-    + intros x hr. admit.
+    + intros x hr.
+      apply bind_finred_ret_inv in hr.
+      destruct hr as [y [h1 h2]].
+      apply hcnv in h1. destruct h1 as [huf [hcf hdf]].
+      apply hcf in h2. assumption.
     + intros s hs. admit.
 Admitted.
