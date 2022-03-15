@@ -223,6 +223,49 @@ Proof.
     apply ih. assumption.
 Qed.
 
+Lemma bind_finred_inv :
+  ∀ A B c f u,
+    bind (A:=A) (B:=B) c f ▹* u →
+    (∃ c', c ▹* c' ∧ u = bind c' f) ∨
+    (∃ x, c ▹* ret x ∧ f x ▹* u).
+Proof.
+  intros A B c f u h.
+  depind h.
+  - left. eexists. split.
+    + constructor.
+    + reflexivity.
+  - lazymatch goal with
+    | H : _ ▹ _ |- _ => rename H into hr
+    end.
+    lazymatch goal with
+    | H : ∀ (A : Type), _ |- _ => rename H into ih
+    end.
+    destruct c as [ x | pre k | J C g i k ].
+    + simpl in hr. right.
+      exists x. split.
+      * constructor.
+      * econstructor. all: eassumption.
+    + simpl in hr. depelim hr.
+      specialize ih with (1 := eq_refl).
+      destruct ih as [[c' [hr e]] | [x [h1 h2]]].
+      * subst. left.
+        eexists. split. 2: reflexivity.
+        econstructor. 2: exact hr.
+        constructor.
+      * right. eexists. split. 2: exact h2.
+        econstructor. 2: exact h1.
+        constructor.
+    + simpl in hr. depelim hr.
+      specialize ih with (1 := eq_refl).
+      destruct ih as [[c' [hr e]] | [x [h1 h2]]].
+      * subst. left.
+        eexists. split. 2: rewrite assoc. 2: reflexivity.
+        econstructor. 1: constructor.
+        apply bind_finred. assumption.
+      * right. eexists. split.
+        (* Did we apply ih to the wrong bind? *)
+Admitted.
+
 (* Sequence of iterations starting in i and ending with value x *)
 Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
 | iter_seq1 : f i ▹* ret (inr x) → iter_seq f i x
@@ -302,10 +345,11 @@ Admitted.
 Lemma bind_infred :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
+    unstuck c →
     (∃ s', infred s' c) ∨
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
-  intros A B c f s h.
+  intros A B c f s h huc.
   apply classical_right.
   intro hc. (* eapply not_exists_forall in hc. *)
   (* Need classical logic for this to say does not diverge means converges *)
