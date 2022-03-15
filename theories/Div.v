@@ -467,7 +467,17 @@ Proof.
     intros P h. simpl. simpl in h. red in h.
     destruct h as [huc [hcnv hdiv]].
     split. 2: split.
-    + intros pre k hr. admit.
+    + intros pre k hr.
+      apply bind_finred_inv in hr.
+      destruct hr as [[c' [hr e]] | [x [h1 h2]]].
+      * {
+        destruct c'. all: noconf e.
+        - simpl in e. apply hcnv in hr. destruct hr as [huf [hcf hdf]].
+          eapply huf. erewrite e. constructor.
+        - eapply huc. eassumption.
+      }
+      * apply hcnv in h1. destruct h1 as [huf [hcf hdf]].
+        eapply huf. eassumption.
     + intros x hr.
       apply bind_finred_ret_inv in hr.
       destruct hr as [y [h1 h2]].
