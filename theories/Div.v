@@ -203,6 +203,43 @@ Proof.
   assumption.
 Qed.
 
+Lemma bind_red :
+  ∀ A B (c : M A) (f : A → M B) c',
+    c ▹ c' →
+    bind c f ▹ bind c' f.
+Proof.
+  intros A B c f c' h.
+  induction h.
+  - simpl. refine (prove_req _ _ _).
+  - rewrite assoc. refine (iter_step _ _ _ _ _).
+Qed.
+
+Lemma bind_finred :
+  ∀ A B (c : M A) (f : A → M B) c',
+    c ▹* c' →
+    bind c f ▹* bind c' f.
+Proof.
+  intros A B c f c' h.
+  induction h.
+  - constructor.
+  - econstructor.
+    + apply bind_red. eassumption.
+    + assumption.
+Qed.
+
+Lemma findred_trans :
+  ∀ A (u v w : M A),
+    u ▹* v →
+    v ▹* w →
+    u ▹* w.
+Proof.
+  intros A u v w h1 h2.
+  induction h1 as [| ????? ih] in w, h2 |- *.
+  - assumption.
+  - econstructor. 1: eassumption.
+    apply ih. assumption.
+Qed.
+
 (* Sequence of iterations starting in i and ending with value x *)
 Inductive iter_seq [J A] (f : J → M (J + A)) (i : J) (x : A) : Prop :=
 | iter_seq1 : f i ▹* ret (inr x) → iter_seq f i x
@@ -235,6 +272,11 @@ Proof.
     Would it be easier to show a lemma without ret?
     Like bind c f ▹* u means either c ▹* c' and u = bind c' f
     or c ▹* ret x and f x ▹* u
+
+    Maybe prove something about the reductions of iter_one? Possibly
+    mutually.
+    Say c ▹* ret x → (c = iter → ...) ∧ (c = bind iter_one ...)
+    No dice.
   *)
 Abort.
 
@@ -257,8 +299,15 @@ Proof.
     + assumption.
   - simpl in h. apply iter_finred_ret_inv_step in h.
     unfold iter_one in h. rewrite assoc in h.
-    apply ihg in h. destruct h as [[] []].
-    + simpl in *. (* We did not make progress *)
+    apply ihg in h. destruct h as [[j | y] [h1 h2]].
+    + simpl in h2. (* We did not make progress *) admit.
+    + simpl in h2. apply ih in h2.
+      destruct h2 as [z [h2 h3]].
+      exists z. split. 2: assumption.
+      econstructor. 1: constructor.
+      unfold iter_one. rewrite assoc.
+      eapply findred_trans. 1: eapply bind_finred. 1: eassumption.
+      simpl. assumption.
 Admitted.
 
 (** Specifiation monad *)
@@ -280,7 +329,7 @@ Class Monotonous [A] (w : W' A) :=
 
 Definition W A := { w : W' A | Monotonous w }.
 
-Definition as_wp [A] (w : W' A) `{h : Monotonous _ w} : W A :=
+Definition as_wp [A] (w : W' A) {h : Monotonous w} : W A :=
   exist _ w h.
 
 Definition retᵂ' [A] (x : A) : W' A :=
