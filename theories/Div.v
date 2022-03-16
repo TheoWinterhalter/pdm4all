@@ -1,6 +1,7 @@
 (*** Non-termination *)
 
-From Coq Require Import Utf8 RelationClasses List PropExtensionality.
+From Coq Require Import Utf8 RelationClasses List PropExtensionality
+  Classical_Prop Lia.
 From PDM Require Import util structures guarded PURE GuardedPDM.
 From Equations Require Import Equations.
 Require Equations.Prop.DepElim.
@@ -210,7 +211,16 @@ Proof.
     + assumption.
 Qed.
 
-Lemma findred_trans :
+Lemma finred_eq :
+  ∀ A (u v : M A),
+    u = v →
+    u ▹* v.
+Proof.
+  intros A u v h.
+  subst. constructor.
+Qed.
+
+Lemma finred_trans :
   ∀ A (u v w : M A),
     u ▹* v →
     v ▹* w →
@@ -311,57 +321,77 @@ Lemma bind_infred :
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
   intros A B c f s h huc.
-  (* destruct (classical (∃ n, ∀ m < n, )). *)
-  (* It'll help to have s 0 be the boundary *)
-
-  (* eassert (hh : ∀ (n : nat), _).
-  { intro n. *)
-    (* Here we want to apply a lemma saying bind c f ▹* s n *)
-    (* Then bind_finred_inv *)
-  (* } *)
-  (* Then we will use LEM to determine whether for all n, the left side of
-  the or holds or not.
-  If all lhs, then will I need choice to extract a stream of c'?
-  Or can I define a function that gets it from z = bind c' f?
-  Or can I improve bind_finred_inv to be constructive?
-  *)
-
-  (* apply classical_right.
-  intro hc.  *)
-  (* eapply not_exists_forall in hc. *)
-
-  (* Using right is the safer bet I'd say
-    Then combine with a proof that ∀ n, bind c f ▹* s n
-    and bind_finred_inv to conclude that there must be a reduction to
-    ret from s otherwise we would have a an infinite reduction for c?
-  *)
-
-  apply classical_left. intro hn.
-  apply not_exists_forall in hn. unfold id in hn.
-  assert (hnc : ∀ x, ¬ (c ▹* ret x)).
-  { intro x. specialize (hn x).
-    intro hc. apply hn.
-    exists s.
-  }
-
-  (* Need classical logic for this to say does not diverge means converges *)
-  (* Also will need the fact converges means to ret so in particular the
-    not stuck condition on c.
-  *)
-
-  (* Maybe the property we need to LEM is
-    ∀ n, ∃ c', s n = bind c' f
-    because it tells us when c finally gets consumed?
-    (What out for whether it's ok, because when c' = ret, a lot of things can
-    happen.)
-    Also for it to work in the postiive case, we need to invert
-    bind c f ▹ bind c' f to c ▹ c' and I'm not sure it's ok
-    like when c = ret x, then f x ▹ bind c' f and it's not clear why it
-    wouldn't be possible...
-
-    Probably means I need to find another property to split on.
-    Maybe the current split is ok? But we need to get some n then.
-  *)
+  let p :=
+    constr:(
+      ∃ n (c' : ∀ m, m ≤ n → M A) x,
+        (∀ m hm hSm, c' m hm ▹ c' (S m) hSm) ∧
+        (∀ m hm, s m = bind (c' m hm) f) ∧
+        c' 0 (le_0_n n) = c ∧
+        c' n ltac:(auto) = ret x
+    )
+  in
+  destruct (classic p) as [[n [c' [x [rm [em [e0 en]]]]]] | hh].
+  - right. exists x, (λ q, s (q+n)). split.
+    + rewrite <- e0, <- en. clear - rm.
+      pose (m := n).
+      set (h := le_0_n n). clearbody h.
+      revert h. replace 0 with (n - m) by lia. intro h.
+      clearbody m.
+      induction m as [| m ih].
+      * revert h. replace (n - 0) with n by lia. intro h.
+        replace h with (le_n n) by apply proof_irrelevance.
+        constructor.
+      * {
+        assert (h1 : n - m ≤ n) by lia.
+        eapply finred_trans. 2: unshelve eapply ih. 2: assumption.
+        destruct (classic (n ≤ m)) as [e|ne].
+        - revert h h1.
+          replace (n - S m) with 0 by lia.
+          replace (n - m) with 0 by lia.
+          intros. apply finred_eq. f_equal. apply proof_irrelevance.
+        - assert (h2 : S (n - S m) ≤ n) by lia.
+          econstructor. 1: unshelve eapply rm. 1: assumption.
+          apply finred_eq.
+          revert h1. replace (n - m) with (S (n - S m)) by lia. intro h1.
+          f_equal. apply proof_irrelevance.
+      }
+    + split.
+      * simpl. specialize (em n (le_n n)).
+        rewrite en in em. simpl in em. symmetry. assumption.
+      * intro m. apply h.
+  - apply classical_left. intro hnc'.
+    assert (hn :
+      ∀ n (c' : ∀ m, m ≤ n → M A) x,
+        ¬ (∀ m hm hSm, c' m hm ▹ c' (S m) hSm) ∨
+        ¬ (∀ m hm, s m = bind (c' m hm) f) ∨
+        c' 0 (le_0_n n) ≠ c ∨
+        c' n ltac:(auto) ≠ ret x
+    ).
+    { intros n c' x.
+      apply not_exists_forall in hh. unfold id in hh. specialize (hh n).
+      apply not_exists_forall in hh. unfold id in hh. specialize (hh c').
+      apply not_exists_forall in hh. unfold id in hh. specialize (hh x).
+      apply not_and_or in hh. destruct hh as [hh|hh].
+      1:{ left. assumption. }
+      apply not_and_or in hh. destruct hh as [hh|hh].
+      1:{ right. left. assumption. }
+      apply not_and_or in hh.
+      right. right. assumption.
+    }
+    clear hh.
+    assert (hnc : ∀ x s', ¬ (c ▹* ret x) ∨ ¬ infred s' (f x)).
+    { intros x s'.
+      apply not_exists_forall in hnc'. unfold id in hnc'. specialize (hnc' x).
+      apply not_exists_forall in hnc'. unfold id in hnc'. specialize (hnc' s').
+      apply not_and_or in hnc'. assumption.
+    }
+    clear hnc'.
+    destruct h as [e h].
+    (* Now I want to apply bind_ret_inv to h n forall n
+      and hopefully use hn to exclude the reduce to ret option.
+      I might need to turn the goal into a ∀ n, ∃ c' : M A to build it step
+      by step.
+    *)
 Abort.
 
 (** Specifiation monad *)
