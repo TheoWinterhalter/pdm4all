@@ -107,7 +107,7 @@ Derive Signature for finred.
 
 (* Infinite reduction sequence from c *)
 Definition infred [A] (s : nat → M A) (c : M A) :=
-  c ▹ s 0 ∧ ∀ n, s n ▹ s (S n).
+  c = s 0 ∧ ∀ n, s n ▹ s (S n).
 
 (* The term c is not stuck on any require *)
 Definition unstuck [A] (c : M A) :=
@@ -311,11 +311,14 @@ Lemma bind_infred :
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
   intros A B c f s h huc.
-  eassert (hh : ∀ (n : nat), _).
-  { intro n.
+  (* destruct (classical (∃ n, ∀ m < n, )). *)
+  (* It'll help to have s 0 be the boundary *)
+
+  (* eassert (hh : ∀ (n : nat), _).
+  { intro n. *)
     (* Here we want to apply a lemma saying bind c f ▹* s n *)
     (* Then bind_finred_inv *)
-  }
+  (* } *)
   (* Then we will use LEM to determine whether for all n, the left side of
   the or holds or not.
   If all lhs, then will I need choice to extract a stream of c'?
@@ -521,8 +524,9 @@ Proof.
     + intros y hr. apply ret_finred_inv in hr. noconf hr.
       assumption.
     + intros s hs.
-      destruct hs as [hr ?].
-      apply ret_red_inv in hr. exfalso. assumption.
+      destruct hs as [e hs]. specialize (hs 0).
+      rewrite <- e in hs.
+      apply ret_red_inv in hs. contradiction.
   - intros A B c f.
     intros P h. simpl. simpl in h. red in h.
     destruct h as [huc [hcnv hdiv]].
