@@ -61,10 +61,19 @@ Proof.
   classical_right. auto.
 Qed.
 
+Lemma classical_left :
+  ∀ (P Q : Prop),
+    (¬ Q → P) →
+    P ∨ Q.
+Proof.
+  intros P Q h.
+  classical_left. auto.
+Qed.
+
 Lemma not_exists_forall :
   ∀ (A : Type) (P : A → Prop),
     ¬ (∃ x, P x) →
-    ∀ x, ¬ P x.
+    id (∀ x, ¬ P x).
 Proof.
   intros A P h x hx.
   apply h. exists x. apply hx.
