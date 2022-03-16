@@ -223,6 +223,24 @@ Proof.
     apply ih. assumption.
 Qed.
 
+Lemma bind_red_inv :
+  ∀ A B c f u,
+    bind (A:=A) (B:=B) c f ▹ u →
+    (∃ c', c ▹ c' ∧ u = bind c' f) ∨
+    (∃ x, c = ret x ∧ f x ▹ u).
+Proof.
+  intros A B c f u h.
+  destruct c as [ x | pre k | J C g i k ].
+  - right. exists x. intuition auto.
+  - simpl in h. depelim h.
+    left. eexists. split. 2: reflexivity.
+    constructor.
+  - simpl in h. depelim h.
+    left. eexists. split.
+    + constructor.
+    + rewrite assoc. reflexivity.
+Qed.
+
 Lemma bind_finred_inv :
   ∀ A B c f u,
     bind (A:=A) (B:=B) c f ▹* u →
@@ -293,11 +311,53 @@ Lemma bind_infred :
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
   intros A B c f s h huc.
-  apply classical_right.
-  intro hc. (* eapply not_exists_forall in hc. *)
+  eassert (hh : ∀ (n : nat), _).
+  { intro n.
+    (* Here we want to apply a lemma saying bind c f ▹* s n *)
+    (* Then bind_finred_inv *)
+  }
+  (* Then we will use LEM to determine whether for all n, the left side of
+  the or holds or not.
+  If all lhs, then will I need choice to extract a stream of c'?
+  Or can I define a function that gets it from z = bind c' f?
+  Or can I improve bind_finred_inv to be constructive?
+  *)
+
+  (* apply classical_right.
+  intro hc.  *)
+  (* eapply not_exists_forall in hc. *)
+
+  (* Using right is the safer bet I'd say
+    Then combine with a proof that ∀ n, bind c f ▹* s n
+    and bind_finred_inv to conclude that there must be a reduction to
+    ret from s otherwise we would have a an infinite reduction for c?
+  *)
+
+  apply classical_left. intro hn.
+  apply not_exists_forall in hn. unfold id in hn.
+  assert (hnc : ∀ x, ¬ (c ▹* ret x)).
+  { intro x. specialize (hn x).
+    intro hc. apply hn.
+    exists s.
+  }
+
   (* Need classical logic for this to say does not diverge means converges *)
   (* Also will need the fact converges means to ret so in particular the
     not stuck condition on c.
+  *)
+
+  (* Maybe the property we need to LEM is
+    ∀ n, ∃ c', s n = bind c' f
+    because it tells us when c finally gets consumed?
+    (What out for whether it's ok, because when c' = ret, a lot of things can
+    happen.)
+    Also for it to work in the postiive case, we need to invert
+    bind c f ▹ bind c' f to c ▹ c' and I'm not sure it's ok
+    like when c = ret x, then f x ▹ bind c' f and it's not clear why it
+    wouldn't be possible...
+
+    Probably means I need to find another property to split on.
+    Maybe the current split is ok? But we need to get some n then.
   *)
 Abort.
 
