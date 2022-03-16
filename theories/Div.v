@@ -313,6 +313,51 @@ Proof.
   - assumption.
 Qed.
 
+Lemma prove_finred :
+  ∀ A (c : M A),
+    (∀ n (c' : ∀ m, m ≤ n → M A), ∃ c'', c' n (le_n n) ▹ c'') →
+    ∃ s, infred s c.
+Proof.
+  intros A c h.
+  unfold infred.
+  assert (hn :
+    ∀ n,
+      ∃ (c' : ∀ m, m ≤ n → M A),
+        c' 0 (le_0_n _) = c ∧
+        ∀ k hk hSk, c' k hk ▹ c' (S k) hSk
+  ).
+  { intro n. induction n as [| n ih].
+    - exists (λ m hm, c). split.
+      + reflexivity.
+      + intros k hk hSk. lia.
+    - destruct ih as [c' [e ih]].
+      specialize (h _ c'). destruct h as [c'' hc''].
+      unshelve eexists.
+      { intros m hm.
+        destruct (Compare_dec.le_gt_dec m n) as [hn|hn].
+        - exact (c' _ hn).
+        - exact c''.
+      }
+      split.
+      + simpl. subst. f_equal. apply proof_irrelevance.
+      + intros k hk hSk.
+        destruct (Compare_dec.le_gt_dec k n) as [hn|]. 2: lia.
+        destruct (Compare_dec.le_gt_dec (S k) n).
+        * simpl. apply ih.
+        * simpl. assert (k = n) by lia. subst.
+          replace hn with (le_n n) by apply proof_irrelevance.
+          assumption.
+  }
+  unshelve eexists.
+  { intro n. specialize (hn n).
+    (* Is there some way of doing this?
+      Should I move to constructive stuff?
+      Or simply to choice?
+    *)
+    admit.
+  }
+Abort.
+
 Lemma bind_infred :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
