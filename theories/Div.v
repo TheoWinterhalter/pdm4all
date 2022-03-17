@@ -81,7 +81,7 @@ Definition iter_one [J A] (f : J → M (J + A)) (i : J) :=
 
 Reserved Notation "u ▹ v" (at level 80).
 
-Inductive red {A} : M A → M A → Prop :=
+Inductive red {A} : M A → M A → Type :=
 
 | prove_req :
     ∀ p k h,
@@ -98,7 +98,7 @@ Derive Signature for red.
 (* Finite reduction sequence *)
 Reserved Notation "u ▹* v" (at level 80).
 
-Inductive finred [A] : M A → M A → Prop :=
+Inductive finred [A] : M A → M A → Type :=
 | finred_id : ∀ c, c ▹* c
 | finred_step : ∀ x y z, x ▹ y → y ▹* z → x ▹* z
 
@@ -107,8 +107,8 @@ where "u ▹* v" := (finred u v).
 Derive Signature for finred.
 
 (* Infinite reduction sequence from c *)
-Definition infred [A] (s : nat → M A) (c : M A) :=
-  c = s 0 ∧ ∀ n, s n ▹ s (S n).
+Definition infred [A] (s : nat → M A) (c : M A) : Type :=
+  (c = s 0) * ∀ n, s n ▹ s (S n).
 
 (* The term c is not stuck on any require *)
 Definition unstuck [A] (c : M A) :=
@@ -139,7 +139,7 @@ Qed.
 Lemma req_red_inv :
   ∀ A (pre : Prop) (k : pre → M A) c,
     act_reqᴹ pre k ▹ c →
-    ∃ (h : pre), c = k h.
+    ∑ (h : pre), c = k h.
 Proof.
   intros A pre k c h.
   depelim h.
@@ -149,7 +149,7 @@ Qed.
 Lemma req_finred_ret_inv :
   ∀ A (pre : Prop) (k : pre → M A) x,
     act_reqᴹ pre k ▹* ret x →
-    ∃ (h : pre), k h ▹* ret x.
+    ∑ (h : pre), k h ▹* ret x.
 Proof.
   intros A pre k x h.
   depelim h.
@@ -164,7 +164,7 @@ Qed.
 Lemma bind_ret_inv :
   ∀ A B (c : M A) (f : A → M B) x,
     bind c f = ret x →
-    ∃ y, c = ret y ∧ f y = ret x.
+    ∑ y, (c = ret y) * (f y = ret x).
 Proof.
   intros A B c f x e.
   destruct c as [y | |]. all: simpl in e. 2-3: noconf e.
@@ -236,8 +236,8 @@ Qed.
 Lemma bind_red_inv :
   ∀ A B c f u,
     bind (A:=A) (B:=B) c f ▹ u →
-    (∃ c', c ▹ c' ∧ u = bind c' f) ∨
-    (∃ x, c = ret x ∧ f x ▹ u).
+    (∑ c', (c ▹ c') * (u = bind c' f)) +
+    (∑ x, (c = ret x) * (f x ▹ u)).
 Proof.
   intros A B c f u h.
   destruct c as [ x | pre k | J C g i k ].
@@ -254,8 +254,8 @@ Qed.
 Lemma bind_finred_inv :
   ∀ A B c f u,
     bind (A:=A) (B:=B) c f ▹* u →
-    (∃ c', c ▹* c' ∧ u = bind c' f) ∨
-    (∃ x, c ▹* ret x ∧ f x ▹* u).
+    (∑ c', (c ▹* c') * (u = bind c' f)) +
+    (∑ x, (c ▹* ret x) * (f x ▹* u)).
 Proof.
   intros A B c f u h.
   depind h.
@@ -301,7 +301,7 @@ Qed.
 Lemma bind_finred_ret_inv :
   ∀ A B c f x,
     bind (A:=A) (B:=B) c f ▹* ret x →
-    ∃ y, c ▹* ret y ∧ f y ▹* ret x.
+    ∑ y, (c ▹* ret y) * (f y ▹* ret x).
 Proof.
   intros A B c f x h.
   apply bind_finred_inv in h. destruct h as [[c' [h e]] | h].
@@ -313,7 +313,7 @@ Proof.
   - assumption.
 Qed.
 
-Lemma prove_finred :
+(* Lemma prove_finred :
   ∀ A (c : M A),
     (∀ n (c' : ∀ m, m ≤ n → M A), ∃ c'', c' n (le_n n) ▹ c'') →
     ∃ s, infred s c.
@@ -361,9 +361,9 @@ Proof.
     *)
     admit.
   }
-Abort.
+Abort. *)
 
-Lemma bind_infred :
+(* Lemma bind_infred :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
     unstuck c →
@@ -453,7 +453,7 @@ Proof.
       I might need to turn the goal into a ∀ n, ∃ c' : M A to build it step
       by step.
     *)
-Abort.
+Abort. *)
 
 (** Specifiation monad *)
 
