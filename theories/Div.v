@@ -353,6 +353,11 @@ Proof.
     (* Is there some way of doing this?
       Should I move to constructive stuff?
       Or simply to choice?
+
+      Or to move to a less relevant presentation?
+      I need to decide if I want to distinguish two reduction sequences or
+      if I only care about divergence.
+      (For traces this means, should traces come with the reduction then?)
     *)
     admit.
   }
@@ -366,6 +371,17 @@ Lemma bind_infred :
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
   intros A B c f s h huc.
+
+  (* Thinking about when it might become non-deterministic
+    I cannot decide whether it always terminates or always diverges, I need
+    something more fine-grained. But then the lemma itself will have to be more
+    precise to relate s' with s in both cases.
+
+    Like either s = map (λ c, bind c f) s' for infred s' c
+    or s = map (λ c, bind c f) r ⋅ s' for infred s' (f x) and r : c ▹* ret x
+    this means moving ▹* to Type to extract the intermediary points.
+  *)
+
   let p :=
     constr:(
       ∃ n (c' : ∀ m, m ≤ n → M A) x,
