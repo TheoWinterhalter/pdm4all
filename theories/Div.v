@@ -2,7 +2,8 @@
 
 From Coq Require Import Utf8 RelationClasses List PropExtensionality
   Classical_Prop Lia IndefiniteDescription.
-From PDM Require Import util structures guarded PURE GuardedPDM.
+From PDM Require Import util structures guarded PURE.
+From PDM Require PDM.
 From Equations Require Import Equations.
 Require Equations.Prop.DepElim.
 
@@ -495,7 +496,7 @@ Definition reqᵂ (p : Prop) : W p :=
 Definition wle [A] (w₀ w₁ : W A) : Prop :=
   ∀ P, val w₁ P → val w₀ P.
 
-#[export] Instance WStOrder : Order W.
+#[export] Instance WOrder : Order W.
 Proof.
   exists wle.
   intros A x y z h₁ h₂. intros P h.
@@ -503,7 +504,7 @@ Proof.
   assumption.
 Defined.
 
-#[export] Instance WStMono : MonoSpec W.
+#[export] Instance WMono : MonoSpec W.
 Proof.
   constructor.
   intros A B w w' wf wf' hw hwf.
@@ -524,7 +525,7 @@ Proof.
   simpl. intros x. apply hPQ.
 Defined.
 
-#[export] Instance hlift : PureSpec W WStOrder liftᵂ.
+#[export] Instance hlift : PureSpec W WOrder liftᵂ.
 Proof.
   constructor.
   intros A w f.
@@ -626,3 +627,14 @@ Proof.
     end.
     depelim h1.
 Qed.
+
+Definition D A w : Type :=
+  PDM.D (θ := θ) A w.
+
+#[export] Instance DijkstraMonad_D : DijkstraMonad D :=
+  PDM.DijkstraMonad_D WMono θ_lax.
+
+(* Lift from PURE *)
+
+Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
+  PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.

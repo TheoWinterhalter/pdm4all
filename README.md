@@ -55,7 +55,7 @@ a specification monad.
 - `StateFree.v`: State defined with a free monad.
 - `DM4FreeState.v`: State using DM4Free construction.
 - `ND.v`: Non-determinism.
-- `Div.v`: Non-termination. (🚧 WIP 🚧)
+- `Div.v`: Non-termination (uses classical logic, including functional choice).
 
 ## F* examples
 
