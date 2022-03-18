@@ -643,19 +643,37 @@ Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
 
 Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
   λ P,
+    (* Finite iteration *)
     (∀ (js : list J) x,
       seqR (λ i j, val (w i) (λ r, r = cnv (inl j))) (i :: js) →
       val (w (last js i)) (λ r, r = cnv (inr x)) →
       P (cnv x)
+    ) ∧
+    (* Finite iteration with final branch diverging *)
+    (∀ (js : list J),
+      seqR (λ i j, val (w i) (λ r, r = cnv (inl j))) (i :: js) →
+      val (w (last js i)) (λ r, r = div) →
+      P div
+    ) ∧
+    (* Infinite iteration *)
+    (∀ (js : nat → J),
+      val (w i) (λ r, r = cnv (inl (js 0))) →
+      (∀ n, val (w (js n)) (λ r, r = cnv (inl (js (S n))))) →
+      P div
     ).
 
 #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
   Monotonous (iterᵂ' w i).
 Proof.
   intros P Q hPQ h.
-  unfold iterᵂ' in *.
-  intros js x hjs hl.
-  apply hPQ. eapply h. all: eassumption.
+  destruct h as [hfi [hdb hdi]].
+  split. 2: split.
+  - intros js x hjs hl.
+    apply hPQ. eapply hfi. all: eassumption.
+  - intros js hjs hl.
+    apply hPQ. eapply hdb. all: eassumption.
+  - intros js hi hn.
+    apply hPQ. eapply hdi. all: eassumption.
 Qed.
 
 Definition iterᵂ [J A] w i :=
