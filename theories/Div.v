@@ -350,7 +350,7 @@ Proof.
   exists (λ n, proj1_sig (s n)). assumption.
 Qed.
 
-Lemma bind_infred :
+Lemma bind_infred_inv :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
     (∃ s', infred s' c) ∨
@@ -579,5 +579,10 @@ Proof.
       destruct hr as [y [h1 h2]].
       apply hcnv in h1. destruct h1 as [huf [hcf hdf]].
       apply hcf in h2. assumption.
-    + intros s hs. admit.
-Admitted.
+    + intros s hs.
+      apply bind_infred_inv in hs.
+      destruct hs as [[s' hs'] | [x [s' [h1 h2]]]].
+      * eapply hdiv. eassumption.
+      * apply hcnv in h1. destruct h1 as [huf [hcf hdf]].
+        eapply hdf. eassumption.
+Qed.
