@@ -78,3 +78,15 @@ Proof.
   intros A P h x hx.
   apply h. exists x. apply hx.
 Qed.
+
+Lemma not_forall_exists :
+  ∀ A (P : A → Prop),
+    ¬ (∀ x, P x) →
+    ∃ x, ¬ (P x).
+Proof.
+  intros A P h.
+  apply NNPP. intro hn. apply h. clear h.
+  intro x.
+  apply NNPP. intro hx. apply hn.
+  exists x. assumption.
+Qed.

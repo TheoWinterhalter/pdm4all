@@ -1,7 +1,7 @@
 (*** Non-termination *)
 
 From Coq Require Import Utf8 RelationClasses List PropExtensionality
-  Classical_Prop Lia.
+  Classical_Prop Lia IndefiniteDescription.
 From PDM Require Import util structures guarded PURE GuardedPDM.
 From Equations Require Import Equations.
 Require Equations.Prop.DepElim.
@@ -363,6 +363,43 @@ Proof.
   }
 Abort.
 
+Lemma not_finred_acc :
+  ∀ A (c : M A),
+    ¬ (∃ s, infred s c) →
+    Acc (λ x y, y ▹ x) c.
+Proof.
+  intros A.
+  pose (B := { u : M A | ¬ (Acc (λ x y, y ▹ x) u)}).
+  assert (hnext : ∀ u : B, ∃ v : B, proj1_sig u ▹ proj1_sig v).
+  { intros [u hu].
+    eassert (h : ¬ _).
+    { intro h. apply hu. apply Acc_intro. exact h. }
+    apply not_forall_exists in h. destruct h as [v hv].
+    apply imply_to_and in hv. destruct hv as [r hv].
+    unshelve eexists ⟨ v ⟩. all: assumption.
+  }
+  intros c h.
+  apply NNPP. intro hn. apply h. clear h.
+  apply functional_choice in hnext.
+  destruct hnext as [f hf].
+  assert (he :
+    ∃ s : nat → B,
+      c = proj1_sig (s 0) ∧
+      ∀ n, proj1_sig (s n) ▹ proj1_sig (s (S n))
+  ).
+  { unshelve eexists.
+    { intro n. induction n as [| n b].
+      - exists c. assumption.
+      - exact (f b).
+    }
+    split.
+    - simpl. reflexivity.
+    - simpl. intro n. apply hf.
+  }
+  destruct he as [s hs].
+  exists (λ n, proj1_sig (s n)). assumption.
+Qed.
+
 Lemma bind_infred :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
@@ -380,6 +417,18 @@ Proof.
     Like either s = map (λ c, bind c f) s' for infred s' c
     or s = map (λ c, bind c f) r ⋅ s' for infred s' (f x) and r : c ▹* ret x
     this means moving ▹* to Type to extract the intermediary points.
+
+    In the end I guess it's better to have it in Prop as much as possible.
+    For IIO for instance, the evaluation relation will need the history anyway.
+
+    In any case, if we keep s : nat → M A, we will probably need countable
+    choice and I guess that's fine.
+    Maybe we should split on the existence of some sequence s' with infred s' c
+    such that s = map (bind _ f) s'?
+    In fact it doesn't help compared to classical_right right?
+
+    Instead I should really aim to prove: not non-terminating implies all paths
+    are finite.
   *)
 
   let p :=
