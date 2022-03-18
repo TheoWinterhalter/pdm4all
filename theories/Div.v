@@ -189,20 +189,6 @@ Proof.
   - assumption.
 Qed.
 
-Lemma iter_finred_ret_inv_step :
-  ∀ A J B f i k (x : A),
-    act_iterᴹ J B f i k ▹* ret x →
-    bind (iter_one f i) k ▹* ret x.
-Proof.
-  intros A J B f i k x h.
-  depelim h.
-  lazymatch goal with
-  | H : _ ▹ _ |- _ => rename H into hr
-  end.
-  depelim hr.
-  assumption.
-Qed.
-
 Lemma bind_red :
   ∀ A B (c : M A) (f : A → M B) c',
     c ▹ c' →
@@ -411,6 +397,24 @@ Proof.
       eassumption.
     + assumption.
 Qed.
+
+Lemma iter_finred_inv :
+  ∀ A J f i c,
+    @iterᴹ J A f i ▹* c →
+    ∃ (js : list J),
+      seqR (λ i j, f i ▹* ret (inl j)) (i :: js) ∧
+      (
+        (∃ x, f (last js i) ▹* ret (inr x) ∧ c = ret x) ∨
+        (f (last js i) ▹* bind c (λ x, ret (inr x)))
+      ).
+Proof.
+  intros A J f i c h.
+  (* Not clear how to attack this lemma *)
+  (* However, maybe an axiomatised version of Div would be even nicer?
+    We can just use iterᵂ as defined in this file and treat it as we do a
+    free monad.
+  *)
+Abort.
 
 (** Specifiation monad *)
 
