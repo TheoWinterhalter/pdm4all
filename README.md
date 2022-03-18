@@ -55,7 +55,8 @@ a specification monad.
 - `StateFree.v`: State defined with a free monad.
 - `DM4FreeState.v`: State using DM4Free construction.
 - `ND.v`: Non-determinism.
-- `Div.v`: Non-termination (uses classical logic, including functional choice).
+- `Div.v`: Non-termination using an evaluation relation (uses classical logic, including functional choice). ⚠️ The spec of iter is not fully worked out. ⚠️
+- `IIOStDiv.v`: Non-termination with instrumented I/O and state using a more axiomatic semantics.
 
 ## F* examples
 

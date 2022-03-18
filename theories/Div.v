@@ -33,7 +33,6 @@ Derive NoConfusion NoConfusionHom for M.
 
 Arguments retᴹ [_].
 Arguments act_reqᴹ [_].
-(* Arguments act_fixᴹ [_]. *)
 Arguments act_iterᴹ [_].
 
 Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
