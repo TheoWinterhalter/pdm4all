@@ -638,3 +638,50 @@ Definition D A w : Type :=
 
 Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
   PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
+
+(* Actions *)
+
+Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+  λ P,
+    (∀ (js : list J) x,
+      seqR (λ i j, val (w i) (λ r, r = cnv (inl j))) (i :: js) →
+      val (w (last js i)) (λ r, r = cnv (inr x)) →
+      P (cnv x)
+    ).
+
+#[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
+  Monotonous (iterᵂ' w i).
+Proof.
+  intros P Q hPQ h.
+  unfold iterᵂ' in *.
+  intros js x hjs hl.
+  apply hPQ. eapply h. all: eassumption.
+Qed.
+
+Definition iterᵂ [J A] w i :=
+  as_wp (@iterᵂ' A J w i).
+
+Lemma θ_iter :
+  ∀ J A (w : J → W (J + A)) (f : ∀ i, D (J + A) (w i)) (i : J),
+    θ (iterᴹ (λ j, val (f j)) i) ≤ᵂ iterᵂ w i.
+Proof.
+  intros J A w f i.
+  intros P h.
+  simpl in h. red in h.
+  simpl. split. 2: split.
+  - intros pre k hr.
+    (* Need iter_finred_req_inv *)
+    admit.
+  - intros x hr.
+    (* Need iter_finred_ret_inv *)
+    admit.
+  - intros s hs.
+    (* Will need iter_infred_inv *)
+    admit.
+Admitted.
+
+Definition iterᴰ [J A] w (f : ∀ i, D (J + A) (w i)) (i : J) : D A (iterᵂ w i).
+Proof.
+  exists (iterᴹ (λ j, val (f j)) i).
+  apply θ_iter.
+Defined.

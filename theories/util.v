@@ -1,4 +1,7 @@
-From Coq Require Import Utf8 RelationClasses PropExtensionality Classical_Prop.
+From Coq Require Import Utf8 RelationClasses PropExtensionality Classical_Prop
+  List.
+
+Import ListNotations.
 
 Set Default Goal Selector "!".
 Set Printing Projections.
@@ -90,3 +93,8 @@ Proof.
   apply NNPP. intro hx. apply hn.
   exists x. assumption.
 Qed.
+
+Inductive seqR [A] (R : A → A → Prop) : list A → Prop :=
+| seqR_nil : seqR R []
+| seqR_one : ∀ x, seqR R [ x ]
+| seqR_cons : ∀ x y l, R x y → seqR R (y :: l) → seqR R (x :: y :: l).
