@@ -146,6 +146,21 @@ Proof.
   eexists. reflexivity.
 Qed.
 
+Lemma req_finred_inv :
+  ∀ A (pre : Prop) (k : pre → M A) c,
+    act_reqᴹ pre k ▹* c →
+    (act_reqᴹ pre k = c) ∨ (∃ (h : pre), k h ▹* c).
+Proof.
+  intros A pre k c h.
+  depelim h.
+  - left. reflexivity.
+  - lazymatch goal with
+    | H : act_reqᴹ _ _ ▹ _ |- _ => rename H into hr
+    end.
+    apply req_red_inv in hr. destruct hr as [hpre e]. subst.
+    right. exists hpre. assumption.
+Qed.
+
 Lemma req_finred_ret_inv :
   ∀ A (pre : Prop) (k : pre → M A) x,
     act_reqᴹ pre k ▹* ret x →
@@ -585,4 +600,29 @@ Proof.
       * eapply hdiv. eassumption.
       * apply hcnv in h1. destruct h1 as [huf [hcf hdf]].
         eapply hdf. eassumption.
+Qed.
+
+#[export] Instance θ_reqlax : ReqLaxMorphism _ θ.
+Proof.
+  constructor.
+  intros p.
+  intros P h. simpl. simpl in h. red in h.
+  destruct h as [h hP].
+  split. 2: split.
+  - intros pre k hr.
+    apply req_finred_inv in hr.
+    destruct hr as [e | [hpre hr]].
+    + noconf e. assumption.
+    + apply ret_finred_inv in hr. noconf hr.
+  - intros x hr.
+    assert (x = h) by apply proof_irrelevance. subst.
+    assumption.
+  - intros s hs.
+    destruct hs as [e hs].
+    specialize (hs 0) as h0. specialize (hs 1) as h1.
+    rewrite <- e in h0. depelim h0.
+    lazymatch goal with
+    | e : _ = _ |- _ => rewrite e in h1
+    end.
+    depelim h1.
 Qed.
