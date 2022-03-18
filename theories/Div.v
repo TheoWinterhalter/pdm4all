@@ -403,106 +403,48 @@ Qed.
 Lemma bind_infred :
   ∀ A B c f s,
     infred s (bind (A:=A) (B:=B) c f) →
-    unstuck c →
     (∃ s', infred s' c) ∨
     (∃ x s', c ▹* ret x ∧ infred s' (f x)).
 Proof.
-  intros A B c f s h huc.
-
-  (* Thinking about when it might become non-deterministic
-    I cannot decide whether it always terminates or always diverges, I need
-    something more fine-grained. But then the lemma itself will have to be more
-    precise to relate s' with s in both cases.
-
-    Like either s = map (λ c, bind c f) s' for infred s' c
-    or s = map (λ c, bind c f) r ⋅ s' for infred s' (f x) and r : c ▹* ret x
-    this means moving ▹* to Type to extract the intermediary points.
-
-    In the end I guess it's better to have it in Prop as much as possible.
-    For IIO for instance, the evaluation relation will need the history anyway.
-
-    In any case, if we keep s : nat → M A, we will probably need countable
-    choice and I guess that's fine.
-    Maybe we should split on the existence of some sequence s' with infred s' c
-    such that s = map (bind _ f) s'?
-    In fact it doesn't help compared to classical_right right?
-
-    Instead I should really aim to prove: not non-terminating implies all paths
-    are finite.
-  *)
-
-  let p :=
-    constr:(
-      ∃ n (c' : ∀ m, m ≤ n → M A) x,
-        (∀ m hm hSm, c' m hm ▹ c' (S m) hSm) ∧
-        (∀ m hm, s m = bind (c' m hm) f) ∧
-        c' 0 (le_0_n n) = c ∧
-        c' n ltac:(auto) = ret x
-    )
-  in
-  destruct (classic p) as [[n [c' [x [rm [em [e0 en]]]]]] | hh].
-  - right. exists x, (λ q, s (q+n)). split.
-    + rewrite <- e0, <- en. clear - rm.
-      pose (m := n).
-      set (h := le_0_n n). clearbody h.
-      revert h. replace 0 with (n - m) by lia. intro h.
-      clearbody m.
-      induction m as [| m ih].
-      * revert h. replace (n - 0) with n by lia. intro h.
-        replace h with (le_n n) by apply proof_irrelevance.
-        constructor.
-      * {
-        assert (h1 : n - m ≤ n) by lia.
-        eapply finred_trans. 2: unshelve eapply ih. 2: assumption.
-        destruct (classic (n ≤ m)) as [e|ne].
-        - revert h h1.
-          replace (n - S m) with 0 by lia.
-          replace (n - m) with 0 by lia.
-          intros. apply finred_eq. f_equal. apply proof_irrelevance.
-        - assert (h2 : S (n - S m) ≤ n) by lia.
-          econstructor. 1: unshelve eapply rm. 1: assumption.
-          apply finred_eq.
-          revert h1. replace (n - m) with (S (n - S m)) by lia. intro h1.
-          f_equal. apply proof_irrelevance.
-      }
-    + split.
-      * simpl. specialize (em n (le_n n)).
-        rewrite en in em. simpl in em. symmetry. assumption.
-      * intro m. apply h.
-  - apply classical_left. intro hnc'.
-    assert (hn :
-      ∀ n (c' : ∀ m, m ≤ n → M A) x,
-        ¬ (∀ m hm hSm, c' m hm ▹ c' (S m) hSm) ∨
-        ¬ (∀ m hm, s m = bind (c' m hm) f) ∨
-        c' 0 (le_0_n n) ≠ c ∨
-        c' n ltac:(auto) ≠ ret x
-    ).
-    { intros n c' x.
-      apply not_exists_forall in hh. unfold id in hh. specialize (hh n).
-      apply not_exists_forall in hh. unfold id in hh. specialize (hh c').
-      apply not_exists_forall in hh. unfold id in hh. specialize (hh x).
-      apply not_and_or in hh. destruct hh as [hh|hh].
-      1:{ left. assumption. }
-      apply not_and_or in hh. destruct hh as [hh|hh].
-      1:{ right. left. assumption. }
-      apply not_and_or in hh.
-      right. right. assumption.
+  intros A B c f s h.
+  apply classical_right. intro hn.
+  apply not_finred_acc in hn.
+  induction hn as [c hc ih] in s, h |- *.
+  destruct c as [ x | pre k | J C g i k ].
+  - exists x, s. split.
+    + constructor.
+    + assumption.
+  - simpl in h. destruct h as [e hs].
+    specialize (hs 0) as hs0. rewrite <- e in hs0.
+    depelim hs0.
+    specialize ih with (s := λ n, s (S n)).
+    edestruct ih as [x [s' [h1 h2]]].
+    1:{ unshelve constructor. assumption. }
+    1:{
+      split.
+      - symmetry. assumption.
+      - intro n. apply hs.
     }
-    clear hh.
-    assert (hnc : ∀ x s', ¬ (c ▹* ret x) ∨ ¬ infred s' (f x)).
-    { intros x s'.
-      apply not_exists_forall in hnc'. unfold id in hnc'. specialize (hnc' x).
-      apply not_exists_forall in hnc'. unfold id in hnc'. specialize (hnc' s').
-      apply not_and_or in hnc'. assumption.
+    exists x, s'. split.
+    + econstructor. 1: constructor.
+      eassumption.
+    + assumption.
+  - simpl in h. destruct h as [e hs].
+    specialize (hs 0) as hs0. rewrite <- e in hs0.
+    depelim hs0.
+    specialize ih with (s := λ n, s (S n)).
+    edestruct ih as [x [s' [h1 h2]]].
+    1:{ constructor. }
+    1:{
+      split.
+      - symmetry. rewrite assoc. assumption.
+      - intro n. apply hs.
     }
-    clear hnc'.
-    destruct h as [e h].
-    (* Now I want to apply bind_ret_inv to h n forall n
-      and hopefully use hn to exclude the reduce to ret option.
-      I might need to turn the goal into a ∀ n, ∃ c' : M A to build it step
-      by step.
-    *)
-Abort.
+    exists x, s'. split.
+    + econstructor. 1: constructor.
+      eassumption.
+    + assumption.
+Qed.
 
 (** Specifiation monad *)
 
