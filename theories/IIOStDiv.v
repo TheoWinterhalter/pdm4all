@@ -25,79 +25,6 @@ Section IIOStDiv.
 
   Context (state path file_descr file_content : Type).
 
-  (** Syntax monad *)
-
-  Inductive M A :=
-  | retᴹ (x : A)
-  | act_reqᴹ (p : Prop) (k : p → M A)
-  | act_iterᴹ (J B : Type) (f : J → M (J + B)%type) (i : J) (k : B → M A)
-  | act_getᴹ (k : state → M A)
-  | act_putᴹ (s : state) (k : M A)
-  | act_openᴹ (p : path) (k : file_descr → M A)
-  | act_readᴹ (f : file_descr) (k : file_content → M A)
-  | act_closeᴹ (f : file_descr) (k : M A).
-
-  Arguments retᴹ [_].
-  Arguments act_reqᴹ [_].
-  Arguments act_iterᴹ [_].
-  Arguments act_getᴹ [_].
-  Arguments act_putᴹ [_].
-  Arguments act_openᴹ [_].
-  Arguments act_readᴹ [_].
-  Arguments act_closeᴹ [_].
-
-  Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
-    match c with
-    | retᴹ x => f x
-    | act_reqᴹ p k => act_reqᴹ p (λ h, bindᴹ (k h) f)
-    | act_iterᴹ J B g i k => act_iterᴹ J B g i (λ h, bindᴹ (k h) f)
-    | act_getᴹ k => act_getᴹ (λ s, bindᴹ (k s) f)
-    | act_putᴹ s k => act_putᴹ s (bindᴹ k f)
-    | act_openᴹ fp k => act_openᴹ fp (λ x, bindᴹ (k x) f)
-    | act_readᴹ fd k => act_readᴹ fd (λ x, bindᴹ (k x) f)
-    | act_closeᴹ fd k => act_closeᴹ fd (bindᴹ k f)
-    end.
-
-  #[export] Instance Monad_M : Monad M := {|
-    ret := retᴹ ;
-    bind := bindᴹ
-  |}.
-
-  #[export] Instance ReqMonad_M : ReqMonad M := {|
-    req p := act_reqᴹ p (λ h, retᴹ h)
-  |}.
-
-  Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) :=
-    act_iterᴹ J A f i (λ x, ret x).
-
-  Definition getᴹ : M state :=
-    act_getᴹ (λ x, ret x).
-
-  Definition putᴹ (s : state) : M unit :=
-    act_putᴹ s (ret tt).
-
-  Definition openᴹ fp :=
-    act_openᴹ fp (λ x, ret x).
-
-  Definition readᴹ fd :=
-    act_readᴹ fd (λ x, ret x).
-
-  Definition closeᴹ fd :=
-    act_closeᴹ fd (ret tt).
-
-  #[export] Instance M_laws : MonadLaws M.
-  Proof.
-    constructor.
-    - intros A B x f. reflexivity.
-    - intros A c. induction c.
-      1: reflexivity.
-      all: simpl ; f_equal ; try apply functional_extensionality ; auto.
-    - intros A B C c f g.
-      induction c.
-      1: reflexivity.
-      all: simpl ; f_equal ; try apply functional_extensionality ; auto.
-  Qed.
-
   (** I/O events *)
 
   Inductive event :=
@@ -129,6 +56,85 @@ Section IIOStDiv.
     end.
 
   Notation "t ⊑ s" := (trace_refine t s) (at level 80).
+
+  (** Syntax monad *)
+
+  Inductive M A :=
+  | retᴹ (x : A)
+  | act_reqᴹ (p : Prop) (k : p → M A)
+  | act_iterᴹ (J B : Type) (f : J → M (J + B)%type) (i : J) (k : B → M A)
+  | act_getᴹ (k : state → M A)
+  | act_putᴹ (s : state) (k : M A)
+  | act_openᴹ (p : path) (k : file_descr → M A)
+  | act_readᴹ (f : file_descr) (k : file_content → M A)
+  | act_closeᴹ (f : file_descr) (k : M A)
+  | act_histᴹ (k : history → M A).
+
+  Arguments retᴹ [_].
+  Arguments act_reqᴹ [_].
+  Arguments act_iterᴹ [_].
+  Arguments act_getᴹ [_].
+  Arguments act_putᴹ [_].
+  Arguments act_openᴹ [_].
+  Arguments act_readᴹ [_].
+  Arguments act_closeᴹ [_].
+  Arguments act_histᴹ [_].
+
+  Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
+    match c with
+    | retᴹ x => f x
+    | act_reqᴹ p k => act_reqᴹ p (λ h, bindᴹ (k h) f)
+    | act_iterᴹ J B g i k => act_iterᴹ J B g i (λ h, bindᴹ (k h) f)
+    | act_getᴹ k => act_getᴹ (λ s, bindᴹ (k s) f)
+    | act_putᴹ s k => act_putᴹ s (bindᴹ k f)
+    | act_openᴹ fp k => act_openᴹ fp (λ x, bindᴹ (k x) f)
+    | act_readᴹ fd k => act_readᴹ fd (λ x, bindᴹ (k x) f)
+    | act_closeᴹ fd k => act_closeᴹ fd (bindᴹ k f)
+    | act_histᴹ k => act_histᴹ (λ x, bindᴹ (k x) f)
+    end.
+
+  #[export] Instance Monad_M : Monad M := {|
+    ret := retᴹ ;
+    bind := bindᴹ
+  |}.
+
+  #[export] Instance ReqMonad_M : ReqMonad M := {|
+    req p := act_reqᴹ p (λ h, retᴹ h)
+  |}.
+
+  Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) :=
+    act_iterᴹ J A f i (λ x, ret x).
+
+  Definition getᴹ : M state :=
+    act_getᴹ (λ x, ret x).
+
+  Definition putᴹ (s : state) : M unit :=
+    act_putᴹ s (ret tt).
+
+  Definition openᴹ fp :=
+    act_openᴹ fp (λ x, ret x).
+
+  Definition readᴹ fd :=
+    act_readᴹ fd (λ x, ret x).
+
+  Definition closeᴹ fd :=
+    act_closeᴹ fd (ret tt).
+
+  Definition histᴹ :=
+    act_histᴹ (λ x, ret x).
+
+  #[export] Instance M_laws : MonadLaws M.
+  Proof.
+    constructor.
+    - intros A B x f. reflexivity.
+    - intros A c. induction c.
+      1: reflexivity.
+      all: simpl ; f_equal ; try apply functional_extensionality ; auto.
+    - intros A B C c f g.
+      induction c.
+      1: reflexivity.
+      all: simpl ; f_equal ; try apply functional_extensionality ; auto.
+  Qed.
 
   (** Specifiation monad *)
 
