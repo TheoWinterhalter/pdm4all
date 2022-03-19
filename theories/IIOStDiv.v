@@ -212,7 +212,32 @@ Section IIOStDiv.
   Definition reqᵂ (p : Prop) : W p :=
     as_wp (reqᵂ' p).
 
-  (* TODO spec of actions *)
+  Definition getᵂ' : W' state :=
+    λ P hist s, P (cnv [] s s).
+
+  Instance getᵂ_ismono : Monotonous getᵂ'.
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    red. red in h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition getᵂ : W state :=
+    as_wp getᵂ'.
+
+  Definition putᵂ' (s : state) : W' unit :=
+    λ P hist s₀, P (cnv [] s tt).
+
+  Instance putᵂ_ismono : ∀ s, Monotonous (putᵂ' s).
+  Proof.
+    intros s. intros P Q hPQ hist s₀ h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition putᵂ (s : state) : W unit :=
+    as_wp (putᵂ' s).
+
+  (* TODO For I/O we also need the open predicate and maybe validity? *)
 
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
