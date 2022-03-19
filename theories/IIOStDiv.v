@@ -212,6 +212,8 @@ Section IIOStDiv.
   Definition reqᵂ (p : Prop) : W p :=
     as_wp (reqᵂ' p).
 
+  (* TODO spec of actions *)
+
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
     bind := bindᵂ
@@ -221,6 +223,52 @@ Section IIOStDiv.
     req := reqᵂ
   |}.
 
-  (* TODO spec of actions *)
+  Definition wle [A] (w₀ w₁ : W A) : Prop :=
+    ∀ P hist s₀, val w₁ P hist s₀ → val w₀ P hist s₀.
+
+  #[export] Instance WOrder : Order W.
+  Proof.
+    exists wle.
+    intros A x y z h₁ h₂. intros P hist s₀ h.
+    apply h₁. apply h₂.
+    assumption.
+  Defined.
+
+  #[export] Instance WMono : MonoSpec W.
+  Proof.
+    constructor.
+    intros A B w w' wf wf' hw hwf.
+    intros P hist s₀ h.
+    hnf. hnf in h.
+    apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
+    simpl. intros [tr s₁ x| st] hf.
+    - apply hwf. assumption.
+    - assumption.
+  Qed.
+
+  Definition liftᵂ [A] (w : pure_wp A) : W A.
+  Proof.
+    exists (λ P hist s₀, val w (λ x, P (cnv [] s₀ x))).
+    intros P Q hPQ hist s₀ h.
+    destruct w as [w mw].
+    eapply mw. 2: exact h.
+    simpl. intros x. apply hPQ.
+  Defined.
+
+  #[export] Instance hlift : PureSpec W WOrder liftᵂ.
+  Proof.
+    constructor.
+    intros A w f.
+    intros P hist s₀ h.
+    assert (hpre : val w (λ _, True)).
+    { unfold liftᵂ in h.
+      destruct w as [w hw].
+      eapply hw. 2: exact h.
+      auto.
+    }
+    cbv. exists hpre.
+    pose proof (prf (f hpre)) as hf. simpl in hf.
+    apply hf in h. assumption.
+  Qed.
 
 End IIOStDiv.
