@@ -132,4 +132,12 @@ Section IIOStDiv.
 
   (** Specifiation monad *)
 
+  (* TODO: Can we do something interesting about state in infinite branches? *)
+  Inductive run A :=
+  | cnv (t : trace) (s : state) (x : A)
+  | div (s : strace).
+
+  Arguments cnv [_].
+  Arguments div {_}.
+
 End IIOStDiv.
