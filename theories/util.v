@@ -98,3 +98,10 @@ Inductive seqR [A] (R : A → A → Prop) : list A → Prop :=
 | seqR_nil : seqR R []
 | seqR_one : ∀ x, seqR R [ x ]
 | seqR_cons : ∀ x y l, R x y → seqR R (y :: l) → seqR R (x :: y :: l).
+
+(* Truncation of a stream like structure *)
+Fixpoint strunc [A] (s : nat → A) (n : nat) : list A :=
+  match n with
+  | 0 => []
+  | S n => s 0 :: strunc (λ n, s (S n)) n
+  end.
