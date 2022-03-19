@@ -144,6 +144,83 @@ Section IIOStDiv.
   | div (s : strace).
 
   Arguments cnv [_].
-  Arguments div {_}.
+  Arguments div [_].
+
+  Definition preᵂ := history → state → Prop.
+  Definition postᵂ A := run A → Prop.
+
+  Definition W' A := postᵂ A → preᵂ.
+
+  Class Monotonous [A] (w : W' A) :=
+    ismono :
+      ∀ (P Q : postᵂ A),
+        (∀ x, P x → Q x) →
+        ∀ hist s₀, w P hist s₀ → w Q hist s₀.
+
+  Definition W A := { w : W' A | Monotonous w }.
+
+  Definition as_wp [A] (w : W' A) {h : Monotonous w} : W A :=
+    exist _ w h.
+
+  Definition retᵂ' [A] (x : A) : W' A :=
+    λ P hist s₀, P (cnv [] s₀ x).
+
+  #[export] Instance retᵂ_ismono [A] (x : A) : Monotonous (retᵂ' x).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    apply hPQ. apply h.
+  Qed.
+
+  Definition retᵂ [A] (x : A) : W A :=
+    as_wp (retᵂ' x).
+
+  Definition bindᵂ' [A B] (w : W A) (wf : A → W B) : W' B :=
+    λ P hist s₀,
+      val w (λ r,
+        match r with
+        | cnv tr s₁ x => val (wf x) P (rev_append tr hist) s₁
+        | div s => P (div s)
+        end
+      ) hist s₀.
+
+  #[export] Instance bindᵂ_ismono [A B] (w : W A) (wf : A → W B) :
+    Monotonous (bindᵂ' w wf).
+  Proof.
+    destruct w as [w mw].
+    intros P Q hPQ hist s₀ h.
+    eapply mw. 2: exact h.
+    simpl. intros [tr s₁ x| st] hf.
+    - destruct (wf x) as [wf' mwf].
+      eapply mwf. 2: exact hf.
+      assumption.
+    - apply hPQ. assumption.
+  Qed.
+
+  Definition bindᵂ [A B] (w : W A) (wf : A → W B) : W B :=
+    as_wp (bindᵂ' w wf).
+
+  Definition reqᵂ' (p : Prop) : W' p :=
+    λ P hist s₀, ∃ (h : p), P (cnv [] s₀ h).
+
+  #[export] Instance reqᵂ_ismono : ∀ p, Monotonous (reqᵂ' p).
+  Proof.
+    intros p. intros P Q hPQ hist s₀ h.
+    destruct h as [hp h].
+    exists hp. apply hPQ. assumption.
+  Qed.
+
+  Definition reqᵂ (p : Prop) : W p :=
+    as_wp (reqᵂ' p).
+
+  #[export] Instance Monad_W : Monad W := {|
+    ret := retᵂ ;
+    bind := bindᵂ
+  |}.
+
+  #[export] Instance ReqMonad_W : ReqMonad W := {|
+    req := reqᵂ
+  |}.
+
+  (* TODO spec of actions *)
 
 End IIOStDiv.
