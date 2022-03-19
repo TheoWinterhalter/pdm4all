@@ -100,6 +100,36 @@ Section IIOStDiv.
 
   (** I/O events *)
 
+  Inductive event :=
+  | EOpen (fp : path) (fd : file_descr)
+  | ERead (fd : file_descr) (fc : file_content)
+  | EClose (fd : file_descr).
+
+  Definition trace :=
+    list event.
+
+  (* Reverse order from trace: last event first *)
+  Definition history :=
+    list event.
+
+  (* Infinite runs have potentially infinite traces *)
+  Inductive strace :=
+  | fintrace (t : trace)
+  | inftrace (s : nat → event).
+
+  (* Truncation of a stream of traces *)
+  Definition ttrunc (s : nat → trace) (n : nat) : trace :=
+    concat (strunc s n).
+
+  (* A strace refining a stream of traces *)
+  Definition trace_refine (t : strace) (s : nat → trace) : Prop :=
+    match t with
+    | fintrace t => ∃ n, ∀ m, n ≤ m → t = ttrunc s m
+    | inftrace t => ∀ n, ttrunc s n = strunc t (length (ttrunc s n))
+    end.
+
+  Notation "t ⊑ s" := (trace_refine t s) (at level 80).
+
   (** Specifiation monad *)
 
 End IIOStDiv.
