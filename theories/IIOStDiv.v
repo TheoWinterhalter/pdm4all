@@ -57,6 +57,14 @@ Section IIOStDiv.
 
   Notation "t ⊑ s" := (trace_refine t s) (at level 80).
 
+  Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
+    match hist with
+    | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
+    | EClose fd' :: hh => fd ≠ fd' ∧ is_open fd hh
+    | _ :: hh => is_open fd hh
+    | [] => False
+    end.
+
   (** Syntax monad *)
 
   Inductive M A :=
@@ -237,7 +245,62 @@ Section IIOStDiv.
   Definition putᵂ (s : state) : W unit :=
     as_wp (putᵂ' s).
 
-  (* TODO For I/O we also need the open predicate and maybe validity? *)
+  Definition openᵂ' (fp : path) : W' file_descr :=
+    λ P hist s₀, ∃ fd, P (cnv [ EOpen fp fd ] s₀ fd).
+
+  Instance openᵂ_ismono : ∀ fp, Monotonous (openᵂ' fp).
+  Proof.
+    intros fp. intros P Q hPQ hist s₀ h.
+    destruct h as [fd h].
+    exists fd. apply hPQ. assumption.
+  Qed.
+
+  Definition openᵂ (fp : path) : W file_descr :=
+    as_wp (openᵂ' fp).
+
+  Definition readᵂ' (fd : file_descr) : W' file_content :=
+    λ P hist s₀, is_open fd hist ∧ ∃ fc, P (cnv [ ERead fd fc ] s₀ fc).
+
+  Instance readᵂ_ismono : ∀ fd, Monotonous (readᵂ' fd).
+  Proof.
+    intros fd. intros P Q hPQ hist s₀ h.
+    destruct h as [ho [fc h]].
+    split.
+    - assumption.
+    - exists fc. apply hPQ. assumption.
+  Qed.
+
+  Definition readᵂ (fd : file_descr) : W file_content :=
+    as_wp (readᵂ' fd).
+
+  Definition closeᵂ' (fd : file_descr) : W' unit :=
+    λ P hist s₀, is_open fd hist ∧ P (cnv [ EClose fd ] s₀ tt).
+
+  Instance closeᵂ_ismono : ∀ fd, Monotonous (closeᵂ' fd).
+  Proof.
+    intros fd. intros P Q hPQ hist s₀ h.
+    destruct h as [ho h].
+    split.
+    - assumption.
+    - apply hPQ. assumption.
+  Qed.
+
+  Definition closeᵂ (fd : file_descr) : W unit :=
+    as_wp (closeᵂ' fd).
+
+  Definition histᵂ' : W' history :=
+    λ P hist s₀, P (cnv [] s₀ hist).
+
+  Instance histᵂ_ismono : Monotonous histᵂ'.
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition histᵂ : W history :=
+    as_wp histᵂ'.
+
+  (* TODO: iter *)
 
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
