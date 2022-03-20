@@ -300,7 +300,60 @@ Section IIOStDiv.
   Definition histᵂ : W history :=
     as_wp histᵂ'.
 
-  (* TODO: iter *)
+  (* Iterate (n+1) times w (by binding it) *)
+  Fixpoint niterᵂ [J A] (n : nat) (w : J → W (J + A)) (i : J) : W (J + A) :=
+    match n with
+    | 0 => w i
+    | S n =>
+      bindᵂ (w i) (λ x,
+        match x with
+        | inl j => niterᵂ n w j
+        | inr y => retᵂ (inr y)
+        end
+      )
+    end.
+
+  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+    λ P hist s₀,
+      (* Finite iteration *)
+      (∀ n tr s₁ x,
+        val (niterᵂ n w i) (λ r, r = cnv tr s₁ (inr x)) hist s₀ →
+        P (cnv tr s₁ x)
+      ) ∧
+      (* Finite iteration with final branch diverging *)
+      (∀ n st,
+        val (niterᵂ n w i) (λ r, r = div st) hist s₀ →
+        P (div st)
+      ) ∧
+      (* Infinite iteration *)
+      (∀ (js : nat → J) (trs : nat → trace) (ss : nat → state) s,
+        val (w i) (λ r, r = cnv (trs 0) (ss 0) (inl (js 0))) hist s₀ →
+        (∀ n,
+          val (w (js n))
+            (λ r, r = cnv (trs (S n)) (ss (S n)) (inl (js (S n))))
+            (rev_append (ttrunc trs n) hist)
+            (ss n)
+        ) →
+        s ⊑ trs →
+        P (div s)
+      ).
+
+  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
+    Monotonous (iterᵂ' w i).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    destruct h as [hfi [hdb hdi]].
+    split. 2: split.
+    - intros n tr s₁ x h.
+      apply hPQ. eapply hfi. eassumption.
+    - intros n st h.
+      apply hPQ. eapply hdb. eassumption.
+    - intros js trs ss s hi hn hs.
+      apply hPQ. eapply hdi. all: eassumption.
+  Qed.
+
+  Definition iterᵂ [J A] w i :=
+    as_wp (@iterᵂ' A J w i).
 
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
