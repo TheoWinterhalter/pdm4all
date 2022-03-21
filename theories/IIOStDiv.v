@@ -621,7 +621,7 @@ Section IIOStDiv.
         * simpl. auto.
   Qed.
 
-  Instance θ_morph : ReqLaxMorphism _ θ.
+  Instance θ_reqlax : ReqLaxMorphism _ θ.
   Proof.
     constructor.
     intros p. intros post hist s₀ h.
@@ -630,5 +630,16 @@ Section IIOStDiv.
     destruct h as [hp h]. exists hp.
     red. apply shift_post_nil_imp. assumption.
   Qed.
+
+  Definition D A w : Type :=
+    PDM.D (θ := θ) A w.
+
+  Instance DijkstraMonad_D : DijkstraMonad D :=
+    PDM.DijkstraMonad_D WMono θ_lax.
+
+  (* Lift from PURE *)
+
+  Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
+    PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
 
 End IIOStDiv.
