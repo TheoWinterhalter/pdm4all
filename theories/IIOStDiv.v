@@ -57,6 +57,20 @@ Section IIOStDiv.
 
   Notation "t ⊑ s" := (trace_refine t s) (at level 80).
 
+  (* TODO MOVE *)
+  Fixpoint stream_prepend [A] (l : list A) (s : nat → A) (n : nat) : A :=
+    match l, n with
+    | [], n => s n
+    | x :: l, 0 => x
+    | x :: l, S n => stream_prepend l s n
+    end.
+
+  Definition strace_prepend (tr : trace) (st : strace) : strace :=
+    match st with
+    | fintrace tr' => fintrace (tr ++ tr')
+    | inftrace s => inftrace (stream_prepend tr s)
+    end.
+
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
     | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
@@ -170,6 +184,11 @@ Section IIOStDiv.
   Definition as_wp [A] (w : W' A) {h : Monotonous w} : W A :=
     exist _ w h.
 
+  Instance Monotonous_val [A] (w : W A) : Monotonous (val w).
+  Proof.
+    destruct w. assumption.
+  Qed.
+
   Definition retᵂ' [A] (x : A) : W' A :=
     λ P hist s₀, P (cnv [] s₀ x).
 
@@ -182,11 +201,89 @@ Section IIOStDiv.
   Definition retᵂ [A] (x : A) : W A :=
     as_wp (retᵂ' x).
 
+  Definition shift_post [A] (tr : trace) (P : postᵂ A) : postᵂ A :=
+    λ r,
+      match r with
+      | cnv tr' s x => P (cnv (tr ++ tr') s x)
+      | div st => P (div (strace_prepend tr st))
+      end.
+
+  Lemma strace_prepend_nil :
+    ∀ s,
+      strace_prepend [] s = s.
+  Proof.
+    intros [].
+    - simpl. reflexivity.
+    - simpl. reflexivity.
+  Qed.
+
+  Lemma shift_post_nil :
+    ∀ A (P : postᵂ A) r,
+      shift_post [] P r → P r.
+  Proof.
+    intros A P r h.
+    destruct r.
+    - apply h.
+    - simpl in h. rewrite strace_prepend_nil in h. assumption.
+  Qed.
+
+  Lemma shift_post_nil_imp :
+    ∀ A (P : postᵂ A) r,
+      P r → shift_post [] P r.
+  Proof.
+    intros A P r h.
+    destruct r.
+    - apply h.
+    - simpl. rewrite strace_prepend_nil. assumption.
+  Qed.
+
+  Lemma shift_post_mono :
+    ∀ A tr (P Q : postᵂ A),
+      (∀ r, P r → Q r) →
+      ∀ r, shift_post tr P r → shift_post tr Q r.
+  Proof.
+    intros A tr P Q h r hP.
+    destruct r.
+    - apply h. assumption.
+    - apply h. assumption.
+  Qed.
+
+  Lemma stream_prepend_app :
+    ∀ A t t' (s : nat → A),
+      stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
+  Proof.
+    intros A t t' s.
+    extensionality n.
+    induction t as [| a t ih] in t', s, n |- *.
+    - simpl. reflexivity.
+    - destruct n.
+      + simpl. reflexivity.
+      + simpl. apply ih.
+  Qed.
+
+  Lemma strace_prepend_app :
+    ∀ t t' s,
+      strace_prepend t (strace_prepend t' s) = strace_prepend (t ++ t') s.
+  Proof.
+    intros t t' [].
+    - simpl. rewrite app_assoc. reflexivity.
+    - simpl. rewrite stream_prepend_app. reflexivity.
+  Qed.
+
+  Lemma shift_post_app :
+    ∀ A t t' (P : postᵂ A) r,
+      shift_post (t' ++ t) P r → shift_post t (shift_post t' P) r.
+  Proof.
+    intros A t t' P [] h.
+    - simpl in *. rewrite app_assoc. assumption.
+    - simpl in *. rewrite strace_prepend_app. assumption.
+  Qed.
+
   Definition bindᵂ' [A B] (w : W A) (wf : A → W B) : W' B :=
     λ P hist s₀,
       val w (λ r,
         match r with
-        | cnv tr s₁ x => val (wf x) P (rev_append tr hist) s₁
+        | cnv tr s₁ x => val (wf x) (shift_post tr P) (rev_append tr hist) s₁
         | div s => P (div s)
         end
       ) hist s₀.
@@ -200,7 +297,9 @@ Section IIOStDiv.
     simpl. intros [tr s₁ x| st] hf.
     - destruct (wf x) as [wf' mwf].
       eapply mwf. 2: exact hf.
-      assumption.
+      intros [] hr.
+      + simpl. apply hPQ. assumption.
+      + simpl. apply hPQ. assumption.
     - apply hPQ. assumption.
   Qed.
 
@@ -375,6 +474,11 @@ Section IIOStDiv.
     assumption.
   Defined.
 
+  #[export] Instance pure_wp_refl [A] : Reflexive (wle (A := A)).
+  Proof.
+    intro w. intros p hist s₀ h. assumption.
+  Qed.
+
   #[export] Instance WMono : MonoSpec W.
   Proof.
     constructor.
@@ -410,6 +514,121 @@ Section IIOStDiv.
     cbv. exists hpre.
     pose proof (prf (f hpre)) as hf. simpl in hf.
     apply hf in h. assumption.
+  Qed.
+
+  (* Effect observation *)
+
+  Fixpoint θ [A] (c : M A) : W A :=
+    match c with
+    | retᴹ x => ret x
+    | act_getᴹ k => bind getᵂ (λ x, θ (k x))
+    | act_putᴹ s k => bind (putᵂ s) (λ _, θ k)
+    | act_reqᴹ p k => bind (reqᵂ p) (λ x, θ (k x))
+    | act_iterᴹ J B g i k => bind (iterᵂ (λ i, θ (g i)) i) (λ x, θ (k x))
+    | act_openᴹ fp k => bind (openᵂ fp) (λ x, θ (k x))
+    | act_readᴹ fd k => bind (readᵂ fd) (λ x, θ (k x))
+    | act_closeᴹ fd k => bind (closeᵂ fd) (λ x, θ k)
+    | act_histᴹ k => bind histᵂ (λ x, θ (k x))
+    end.
+
+  Instance θ_lax : LaxMorphism θ.
+  Proof.
+    constructor.
+    - intros A x.
+      reflexivity.
+    - intros A B c f.
+      induction c
+      as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih]
+      in B, f |- *.
+      all: intros P hist s₀ h.
+      + simpl. simpl in h. red in h. simpl in h.
+        eapply ismono. 2: exact h.
+        apply shift_post_nil.
+      + destruct h as [hp h]. exists hp.
+        apply ih. simpl. simpl in h. red.
+        eapply ismono. 2: exact h.
+        intros r hr. apply shift_post_nil in hr.
+        destruct r.
+        * eapply ismono. 2: exact hr.
+          apply shift_post_mono.
+          apply shift_post_nil_imp.
+        * apply shift_post_nil_imp. assumption.
+      + destruct h as [h1 [h2 h3]].
+        split. 2: split.
+        * intros n tr s₁ x h.
+          apply ih. simpl. red. eapply ismono.
+          2:{ eapply h1. eassumption. }
+          intros []. all: simpl. 2: auto.
+          rewrite !rev_append_rev. rewrite rev_app_distr. rewrite app_assoc.
+          intro. eapply ismono. 2: eassumption.
+          apply shift_post_app.
+        * intros n st h.
+          eapply h2. eassumption.
+        * intros js trs ss s hi hn hs.
+          eapply h3. all: eassumption.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          apply shift_post_mono. apply shift_post_nil_imp.
+        * simpl. auto.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          apply shift_post_mono. apply shift_post_nil_imp.
+        * simpl. auto.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        destruct h as [fd h]. exists fd.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          intros. apply shift_post_app. assumption.
+        * simpl. auto.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        destruct h as [ho [fc h]].
+        split. 1: assumption.
+        exists fc.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          intros. apply shift_post_app. assumption.
+        * simpl. auto.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        destruct h as [ho h]. split. 1: apply ho.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          intros. apply shift_post_app. assumption.
+        * simpl. auto.
+      + simpl. red. simpl.
+        simpl in h. red in h. simpl in h.
+        apply ih. simpl. red.
+        eapply ismono. 2: exact h.
+        intros [].
+        * simpl. intro. eapply ismono. 2: eassumption.
+          apply shift_post_mono. apply shift_post_nil_imp.
+        * simpl. auto.
+  Qed.
+
+  Instance θ_morph : ReqLaxMorphism _ θ.
+  Proof.
+    constructor.
+    intros p. intros post hist s₀ h.
+    simpl. red. simpl.
+    simpl in h. red in h.
+    destruct h as [hp h]. exists hp.
+    red. apply shift_post_nil_imp. assumption.
   Qed.
 
 End IIOStDiv.
