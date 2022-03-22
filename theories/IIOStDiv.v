@@ -345,28 +345,28 @@ Section IIOStDiv.
     as_wp (putᵂ' s).
 
   Definition openᵂ' (fp : path) : W' file_descr :=
-    λ P hist s₀, ∃ fd, P (cnv [ EOpen fp fd ] s₀ fd).
+    λ P hist s₀, ∀ fd, P (cnv [ EOpen fp fd ] s₀ fd).
 
   Instance openᵂ_ismono : ∀ fp, Monotonous (openᵂ' fp).
   Proof.
     intros fp. intros P Q hPQ hist s₀ h.
-    destruct h as [fd h].
-    exists fd. apply hPQ. assumption.
+    intro fd.
+    apply hPQ. apply h.
   Qed.
 
   Definition openᵂ (fp : path) : W file_descr :=
     as_wp (openᵂ' fp).
 
   Definition readᵂ' (fd : file_descr) : W' file_content :=
-    λ P hist s₀, is_open fd hist ∧ ∃ fc, P (cnv [ ERead fd fc ] s₀ fc).
+    λ P hist s₀, is_open fd hist ∧ ∀ fc, P (cnv [ ERead fd fc ] s₀ fc).
 
   Instance readᵂ_ismono : ∀ fd, Monotonous (readᵂ' fd).
   Proof.
     intros fd. intros P Q hPQ hist s₀ h.
-    destruct h as [ho [fc h]].
+    destruct h as [ho h].
     split.
     - assumption.
-    - exists fc. apply hPQ. assumption.
+    - intro fc. apply hPQ. apply h.
   Qed.
 
   Definition readᵂ (fd : file_descr) : W file_content :=
@@ -584,20 +584,20 @@ Section IIOStDiv.
         * simpl. auto.
       + simpl. red. simpl.
         simpl in h. red in h. simpl in h.
-        destruct h as [fd h]. exists fd.
+        intro fd.
         apply ih. simpl. red.
-        eapply ismono. 2: exact h.
+        eapply ismono. 2: apply h.
         intros [].
         * simpl. intro. eapply ismono. 2: eassumption.
           intros. apply shift_post_app. assumption.
         * simpl. auto.
       + simpl. red. simpl.
         simpl in h. red in h. simpl in h.
-        destruct h as [ho [fc h]].
+        destruct h as [ho h].
         split. 1: assumption.
-        exists fc.
+        intro fc.
         apply ih. simpl. red.
-        eapply ismono. 2: exact h.
+        eapply ismono. 2: apply h.
         intros [].
         * simpl. intro. eapply ismono. 2: eassumption.
           intros. apply shift_post_app. assumption.
