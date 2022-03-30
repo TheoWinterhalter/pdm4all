@@ -642,4 +642,22 @@ Section IIOStDiv.
   Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
     PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
 
+  (* Actions *)
+
+  (* TODO actions *)
+
+  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) (i : J) :
+    D A (iterᵂ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    intros P hist s₀ [h1 [h2 h3]].
+    split. 2: split.
+    - intros n tr s₁ x h.
+      simpl. red. red. rewrite app_nil_r.
+      eapply h1. (* Problem of variance *)
+      give_up.
+    - give_up.
+    - give_up.
+  Abort.
+
 End IIOStDiv.

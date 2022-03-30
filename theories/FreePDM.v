@@ -98,4 +98,6 @@ Section Free.
   Definition liftᴾ :=
     liftᴾ (M := M) (W := W) hmono θ_lax θ_reqlax hlift.
 
+  (* TODO missing actions *)
+
 End Free.
