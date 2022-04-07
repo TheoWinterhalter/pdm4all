@@ -644,18 +644,57 @@ Section IIOStDiv.
 
   (* Actions *)
 
-  (* TODO actions *)
+  Definition prepostᵂ' [A] (pre : preᵂ) (post : history → postᵂ A) : W' A :=
+    λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → P r).
 
-  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) (i : J) :
-    D A (iterᵂ w i).
+  #[export] Instance prepostᵂ_ismono [A] pre post :
+    Monotonous (@prepostᵂ' A pre post).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    destruct h as [hpre hpost].
+    split.
+    - assumption.
+    - intros r h.
+      apply hPQ. apply hpost. assumption.
+  Qed.
+
+  Definition prepostᵂ [A] pre post :=
+    as_wp (@prepostᵂ' A pre post).
+
+  Definition invᵂ A :=
+    (* trace → state → Prop. *)
+    postᵂ A.
+
+  Definition iter_inv_bodyᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W (J + A) :=
+    prepostᵂ (pre i) (λ hist r,
+      inv r ∧
+      match r with
+      | cnv tr s (inl j) => pre j (rev_append tr hist) s
+      | cnv tr s (inr x) => True
+      | div st => True
+      end
+    ).
+
+  Definition iter_invᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W A :=
+    prepostᵂ (pre i) (λ hist r,
+      match r with
+      | cnv tr s x => inv (cnv tr s (inr x))
+      | div st => inv (div st)
+      end
+    ).
+
+  Definition iter_invᴰ [J A] pre inv (f : ∀ (j : J), D (J + A) (iter_inv_bodyᵂ pre inv j)) (i : J) :
+    D A (iter_invᵂ pre inv i).
   Proof.
     exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ [h1 [h2 h3]].
+    intros P hist s₀ [hpre hpost].
     split. 2: split.
     - intros n tr s₁ x h.
       simpl. red. red. rewrite app_nil_r.
-      eapply h1. (* Problem of variance *)
-      give_up.
+      eapply hpost.
+      induction n.
+      + simpl in h. (* Variance problem... *) give_up.
+      + give_up.
     - give_up.
     - give_up.
   Abort.
