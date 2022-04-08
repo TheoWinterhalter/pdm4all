@@ -10,7 +10,7 @@
 *)
 
 From Coq Require Import Utf8 RelationClasses List PropExtensionality
-  FunctionalExtensionality.
+  FunctionalExtensionality Lia.
 From PDM Require Import util structures guarded PURE.
 From PDM Require PDM.
 
@@ -110,11 +110,17 @@ Section IIOStDiv.
     intros tr st s h.
     destruct st as [t | t].
     - destruct h as [n h].
-      exists (length tr + n). intros m hm.
-      (* TODO Lemma for ttrunc of stream_prepend *)
-      admit.
+      exists (S n). intros m hm.
+      destruct m as [| m]. 1: lia.
+      rewrite (h m). 2: lia.
+      reflexivity.
     - intros n. simpl in h.
-      admit.
+      induction n as [| n ih] in t, s, h |- *.
+      + reflexivity.
+      + simpl. unfold ttrunc. simpl.
+        rewrite app_length.
+        (* Lemma on strunc of stream_prepend *)
+        admit.
   Admitted.
 
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
