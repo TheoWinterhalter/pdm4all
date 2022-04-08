@@ -71,6 +71,52 @@ Section IIOStDiv.
     | inftrace s => inftrace (stream_prepend tr s)
     end.
 
+  Lemma stream_prepend_app :
+    ∀ A t t' (s : nat → A),
+      stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
+  Proof.
+    intros A t t' s.
+    extensionality n.
+    induction t as [| a t ih] in t', s, n |- *.
+    - simpl. reflexivity.
+    - destruct n.
+      + simpl. reflexivity.
+      + simpl. apply ih.
+  Qed.
+
+  Lemma strace_prepend_nil :
+    ∀ s,
+      strace_prepend [] s = s.
+  Proof.
+    intros [].
+    - simpl. reflexivity.
+    - simpl. reflexivity.
+  Qed.
+
+  Lemma strace_prepend_app :
+    ∀ t t' s,
+      strace_prepend t (strace_prepend t' s) = strace_prepend (t ++ t') s.
+  Proof.
+    intros t t' [].
+    - simpl. rewrite app_assoc. reflexivity.
+    - simpl. rewrite stream_prepend_app. reflexivity.
+  Qed.
+
+  Lemma trace_refine_prepend :
+    ∀ (tr : trace) (st : strace) (s : nat → trace),
+      st ⊑ s →
+      strace_prepend tr st ⊑ stream_prepend [tr] s.
+  Proof.
+    intros tr st s h.
+    destruct st as [t | t].
+    - destruct h as [n h].
+      exists (length tr + n). intros m hm.
+      (* TODO Lemma for ttrunc of stream_prepend *)
+      admit.
+    - intros n. simpl in h.
+      admit.
+  Admitted.
+
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
     | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
@@ -208,15 +254,6 @@ Section IIOStDiv.
       | div st => P (div (strace_prepend tr st))
       end.
 
-  Lemma strace_prepend_nil :
-    ∀ s,
-      strace_prepend [] s = s.
-  Proof.
-    intros [].
-    - simpl. reflexivity.
-    - simpl. reflexivity.
-  Qed.
-
   Lemma shift_post_nil :
     ∀ A (P : postᵂ A) r,
       shift_post [] P r → P r.
@@ -246,28 +283,6 @@ Section IIOStDiv.
     destruct r.
     - apply h. assumption.
     - apply h. assumption.
-  Qed.
-
-  Lemma stream_prepend_app :
-    ∀ A t t' (s : nat → A),
-      stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
-  Proof.
-    intros A t t' s.
-    extensionality n.
-    induction t as [| a t ih] in t', s, n |- *.
-    - simpl. reflexivity.
-    - destruct n.
-      + simpl. reflexivity.
-      + simpl. apply ih.
-  Qed.
-
-  Lemma strace_prepend_app :
-    ∀ t t' s,
-      strace_prepend t (strace_prepend t' s) = strace_prepend (t ++ t') s.
-  Proof.
-    intros t t' [].
-    - simpl. rewrite app_assoc. reflexivity.
-    - simpl. rewrite stream_prepend_app. reflexivity.
   Qed.
 
   Lemma shift_post_app :
@@ -399,61 +414,6 @@ Section IIOStDiv.
   Definition histᵂ : W history :=
     as_wp histᵂ'.
 
-  (* Iterate (n+1) times w (by binding it) *)
-  Fixpoint niterᵂ [J A] (n : nat) (w : J → W (J + A)) (i : J) : W (J + A) :=
-    match n with
-    | 0 => w i
-    | S n =>
-      bindᵂ (w i) (λ x,
-        match x with
-        | inl j => niterᵂ n w j
-        | inr y => retᵂ (inr y)
-        end
-      )
-    end.
-
-  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    λ P hist s₀,
-      (* Finite iteration *)
-      (∀ n tr s₁ x,
-        val (niterᵂ n w i) (λ r, r = cnv tr s₁ (inr x)) hist s₀ →
-        P (cnv tr s₁ x)
-      ) ∧
-      (* Finite iteration with final branch diverging *)
-      (∀ n st,
-        val (niterᵂ n w i) (λ r, r = div st) hist s₀ →
-        P (div st)
-      ) ∧
-      (* Infinite iteration *)
-      (∀ (js : nat → J) (trs : nat → trace) (ss : nat → state) s,
-        val (w i) (λ r, r = cnv (trs 0) (ss 0) (inl (js 0))) hist s₀ →
-        (∀ n,
-          val (w (js n))
-            (λ r, r = cnv (trs (S n)) (ss (S n)) (inl (js (S n))))
-            (rev_append (ttrunc trs n) hist)
-            (ss n)
-        ) →
-        s ⊑ trs →
-        P (div s)
-      ).
-
-  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
-    Monotonous (iterᵂ' w i).
-  Proof.
-    intros P Q hPQ hist s₀ h.
-    destruct h as [hfi [hdb hdi]].
-    split. 2: split.
-    - intros n tr s₁ x h.
-      apply hPQ. eapply hfi. eassumption.
-    - intros n st h.
-      apply hPQ. eapply hdb. eassumption.
-    - intros js trs ss s hi hn hs.
-      apply hPQ. eapply hdi. all: eassumption.
-  Qed.
-
-  Definition iterᵂ [J A] w i :=
-    as_wp (@iterᵂ' A J w i).
-
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
     bind := bindᵂ
@@ -488,6 +448,62 @@ Section IIOStDiv.
     apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
     simpl. intros [tr s₁ x| st] hf.
     - apply hwf. assumption.
+    - assumption.
+  Qed.
+
+  (* Specification of iter using an impredicative encoding *)
+  Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
+    bind (w i) (λ x,
+      match x with
+      | inl j => k j
+      | inr y => retᵂ y
+      end
+    ).
+
+  Lemma iter_expand_mono :
+    ∀ J A (w w' : J → W (J + A)) (i : J) (k : J → W A),
+      w i ≤ᵂ w' i →
+      iter_expand w i k ≤ᵂ iter_expand w' i k.
+  Proof.
+    intros J A w w' i k hw.
+    unfold iter_expand. eapply bind_mono.
+    - apply hw.
+    - intro. reflexivity.
+  Qed.
+
+  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+    λ post hist s₀,
+      ∃ (P : J → W A),
+        (∀ j, iter_expand w j P ≤ᵂ P j) ∧
+        val (P i) post hist s₀.
+
+  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
+    Monotonous (iterᵂ' w i).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - apply helim.
+    - eapply ismono.
+      + eapply hPQ.
+      + assumption.
+  Qed.
+
+  Definition iterᵂ [J A] w i :=
+    as_wp (@iterᵂ' J A w i).
+
+  Lemma iterᵂ_unfold :
+    ∀ J A (w : J → W (J + A)) (i : J),
+      iter_expand w i (iterᵂ w) ≤ᵂ iterᵂ w i.
+  Proof.
+    intros J A w i. intros post hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    eapply helim in hi as h. simpl in h. red in h.
+    simpl. red. eapply ismono. 2: exact h.
+    simpl. intros [tr s₁ [j | x] | st] hh.
+    - simpl. red.
+      exists iᵂ. split. all: auto.
+    - assumption.
     - assumption.
   Qed.
 
@@ -553,19 +569,19 @@ Section IIOStDiv.
           apply shift_post_mono.
           apply shift_post_nil_imp.
         * apply shift_post_nil_imp. assumption.
-      + destruct h as [h1 [h2 h3]].
-        split. 2: split.
-        * intros n tr s₁ x h.
-          apply ih. simpl. red. eapply ismono.
-          2:{ eapply h1. eassumption. }
-          intros []. all: simpl. 2: auto.
-          rewrite !rev_append_rev. rewrite rev_app_distr. rewrite app_assoc.
+      + simpl. simpl in h.
+        destruct h as [iᵂ [helim hi]].
+        exists iᵂ. split. 1: assumption.
+        eapply ismono. 2: exact hi.
+        simpl. intros [tr s₁ x | st] hh. 2: assumption.
+        eapply ih. simpl. red.
+        eapply ismono. 2: eapply hh.
+        simpl. intros [].
+        * simpl. rewrite !rev_append_rev. rewrite !app_assoc.
+          rewrite rev_app_distr.
           intro. eapply ismono. 2: eassumption.
-          apply shift_post_app.
-        * intros n st h.
-          eapply h2. eassumption.
-        * intros js trs ss s hi hn hs.
-          eapply h3. all: eassumption.
+          intros. apply shift_post_app. assumption.
+        * simpl. auto.
       + simpl. red. simpl.
         simpl in h. red in h. simpl in h.
         apply ih. simpl. red.
@@ -644,6 +660,24 @@ Section IIOStDiv.
 
   (* Actions *)
 
+  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i : D A (iterᵂ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    intros P hist s₀ h.
+    simpl. simpl in h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - intros j. etransitivity. 2: eapply helim.
+      apply iter_expand_mono.
+      eapply prf.
+    - eapply ismono. 2: exact hi.
+      intros [].
+      + red. red. rewrite app_nil_r. auto.
+      + auto.
+  Defined.
+
+  (* pre and post combinator *)
+
   Definition prepostᵂ' [A] (pre : preᵂ) (post : history → postᵂ A) : W' A :=
     λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → P r).
 
@@ -661,42 +695,62 @@ Section IIOStDiv.
   Definition prepostᵂ [A] pre post :=
     as_wp (@prepostᵂ' A pre post).
 
-  Definition invᵂ A :=
-    (* trace → state → Prop. *)
-    postᵂ A.
-
-  Definition iter_inv_bodyᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W (J + A) :=
-    prepostᵂ (pre i) (λ hist r,
-      inv r ∧
-      match r with
-      | cnv tr s (inl j) => pre j (rev_append tr hist) s
-      | cnv tr s (inr x) => True
-      | div st => True
-      end
-    ).
-
-  Definition iter_invᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W A :=
-    prepostᵂ (pre i) (λ hist r,
-      match r with
-      | cnv tr s x => inv (cnv tr s (inr x))
-      | div st => inv (div st)
-      end
-    ).
-
-  Definition iter_invᴰ [J A] pre inv (f : ∀ (j : J), D (J + A) (iter_inv_bodyᵂ pre inv j)) (i : J) :
-    D A (iter_invᵂ pre inv i).
+  Lemma prepostᵂ_mono :
+    ∀ A (p p' : preᵂ) (q q' : history → postᵂ A),
+      (∀ hist s₀, p' hist s₀ → p hist s₀) →
+      (∀ hist r, q hist r → q' hist r) →
+      prepostᵂ p q ≤ᵂ prepostᵂ p' q'.
   Proof.
-    exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ [hpre hpost].
-    split. 2: split.
-    - intros n tr s₁ x h.
-      simpl. red. red. rewrite app_nil_r.
-      eapply hpost.
-      induction n.
-      + simpl in h. (* Variance problem... *) give_up.
-      + give_up.
-    - give_up.
-    - give_up.
-  Abort.
+    intros A p p' q q' hp hq.
+    intros post hist s₀ h.
+    destruct h as [hp' hq'].
+    split.
+    - apply hp. apply hp'.
+    - intros r hr. apply hq'. apply hq. apply hr.
+  Qed.
+
+  (** Some invariant testing *)
+
+  (* Case: the body always terminates to some inl *)
+
+  Definition always_continuesᵂ [J A] (pre : J → preᵂ) (inv : trace → Prop) (i : J) : W (J + A) :=
+    prepostᵂ (pre i) (λ hist r,
+      match r with
+      | cnv tr s (inl j) => pre j (rev_append tr hist) s ∧ inv tr
+      | _ => False
+      end
+    ).
+
+  Definition inv_loopᵂ [J A] (pre : J → preᵂ) (inv : trace → Prop) (i : J) : W A :=
+    prepostᵂ (pre i) (λ hist r,
+      match r with
+      | div st => ∃ (trs : nat → trace), (∀ n, inv (trs n)) ∧ st ⊑ trs
+      | _ => False
+      end
+    ).
+
+  Lemma always_continues :
+    ∀ J A pre inv i,
+      @iterᵂ J A (always_continuesᵂ pre inv) i ≤ᵂ inv_loopᵂ pre inv i.
+  Proof.
+    intros J A pre inv i.
+    intros post hist s₀ h.
+    eexists. split. 2: eassumption.
+    intros j. intros post' hist' s₀' h'.
+    simpl in h'. simpl.
+    destruct h' as [hpre hpost].
+    split.
+    - assumption.
+    - intros [tr s [k | x] | st] hk. 2,3: contradiction.
+      destruct hk as [hk htr].
+      split.
+      + assumption.
+      + intros [| st]. 1: contradiction.
+        intros [trs [htrs hst]]. simpl.
+        eapply hpost.
+        exists (stream_prepend [tr] trs). split.
+        * intros [| n]. all: simpl. all: eauto.
+        * apply trace_refine_prepend. assumption.
+  Qed.
 
 End IIOStDiv.
