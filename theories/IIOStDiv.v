@@ -713,28 +713,27 @@ Section IIOStDiv.
 
   (* Case: the body always terminates to some inl *)
 
-  Definition always_continuesᵂ [J A] (inv : J → preᵂ) (i : J) : W (J + A) :=
-    prepostᵂ (inv i) (λ hist r,
+  Definition always_continuesᵂ [J A] (pre : J → preᵂ) (inv : trace → Prop) (i : J) : W (J + A) :=
+    prepostᵂ (pre i) (λ hist r,
       match r with
-      | cnv tr s (inl j) => inv j (rev_append tr hist) s
+      | cnv tr s (inl j) => pre j (rev_append tr hist) s ∧ inv tr
       | _ => False
       end
     ).
 
-  Definition inv_loopᵂ [J A] (inv : J → preᵂ) (i : J) : W A :=
-    prepostᵂ (inv i) (λ hist r,
-      (* We would need an invariant on traces to conclude about st *)
+  Definition inv_loopᵂ [J A] (pre : J → preᵂ) (inv : trace → Prop) (i : J) : W A :=
+    prepostᵂ (pre i) (λ hist r,
       match r with
-      | div st => True
+      | div st => ∃ (trs : nat → trace), (∀ n, inv (trs n)) ∧ st ⊑ trs
       | _ => False
       end
     ).
 
   Lemma always_continues :
-    ∀ J A inv i,
-      @iterᵂ J A (always_continuesᵂ inv) i ≤ᵂ inv_loopᵂ inv i.
+    ∀ J A pre inv i,
+      @iterᵂ J A (always_continuesᵂ pre inv) i ≤ᵂ inv_loopᵂ pre inv i.
   Proof.
-    intros J A inv i.
+    intros J A pre inv i.
     intros post hist s₀ h.
     eexists. split. 2: eassumption.
     intros j. intros post' hist' s₀' h'.
@@ -743,11 +742,15 @@ Section IIOStDiv.
     split.
     - assumption.
     - intros [tr s [k | x] | st] hk. 2,3: contradiction.
+      destruct hk as [hk htr].
       split.
       + assumption.
-      + intros []. 1: contradiction.
-        intros _. simpl.
-        eapply hpost. constructor.
+      + intros [| st]. 1: contradiction.
+        intros [trs [htrs hst]]. simpl.
+        eapply hpost.
+        exists (stream_prepend [tr] trs). split.
+        * intros [| n]. all: simpl. all: eauto.
+        * apply trace_refine_prepend. assumption.
   Qed.
 
 End IIOStDiv.
