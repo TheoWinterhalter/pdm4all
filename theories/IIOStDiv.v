@@ -408,29 +408,6 @@ Section IIOStDiv.
       end
     ).
 
-  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    λ post hist s₀,
-      ∃ (P : J → W A),
-        (∀ j, val (P j) post hist s₀ → val (iter_expand w j P) post hist s₀) ∧
-        val (P i) post hist s₀.
-
-  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
-    Monotonous (iterᵂ' w i).
-  Proof.
-    intros P Q hPQ hist s₀ h.
-    destruct h as [iᵂ [helim hi]].
-    exists iᵂ. split.
-    - intros j hj.
-      eapply ismono. 1: eapply hPQ.
-      eapply helim. admit.
-    - eapply ismono.
-      + eapply hPQ.
-      + assumption.
-  Admitted.
-
-  Definition iterᵂ [J A] w i :=
-    as_wp (@iterᵂ' A J w i).
-
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
     bind := bindᵂ
@@ -465,6 +442,42 @@ Section IIOStDiv.
     apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
     simpl. intros [tr s₁ x| st] hf.
     - apply hwf. assumption.
+    - assumption.
+  Qed.
+
+  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+    λ post hist s₀,
+      ∃ (P : J → W A),
+        (∀ j, iter_expand w j P ≤ᵂ P j) ∧
+        val (P i) post hist s₀.
+
+  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
+    Monotonous (iterᵂ' w i).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - apply helim.
+    - eapply ismono.
+      + eapply hPQ.
+      + assumption.
+  Qed.
+
+  Definition iterᵂ [J A] w i :=
+    as_wp (@iterᵂ' A J w i).
+
+  Lemma iterᵂ_unfold :
+    ∀ J A (w : J → W (J + A)) (i : J),
+      iter_expand w i (iterᵂ w) ≤ᵂ iterᵂ w i.
+  Proof.
+    intros J A w i. intros post hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    eapply helim in hi as h. simpl in h. red in h.
+    simpl. red. eapply ismono. 2: exact h.
+    simpl. intros [tr s₁ [j | x] | st] hh.
+    - simpl. red.
+      exists iᵂ. split. all: auto.
+    - assumption.
     - assumption.
   Qed.
 
