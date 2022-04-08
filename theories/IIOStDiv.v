@@ -399,57 +399,34 @@ Section IIOStDiv.
   Definition histᵂ : W history :=
     as_wp histᵂ'.
 
-  (* Iterate (n+1) times w (by binding it) *)
-  Fixpoint niterᵂ [J A] (n : nat) (w : J → W (J + A)) (i : J) : W (J + A) :=
-    match n with
-    | 0 => w i
-    | S n =>
-      bindᵂ (w i) (λ x,
-        match x with
-        | inl j => niterᵂ n w j
-        | inr y => retᵂ (inr y)
-        end
-      )
-    end.
+  (* Specification of iter using an impredicative encoding *)
+  Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
+    bindᵂ (w i) (λ x,
+      match x with
+      | inl j => k j
+      | inr y => retᵂ y
+      end
+    ).
 
   Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    λ P hist s₀,
-      (* Finite iteration *)
-      (∀ n tr s₁ x,
-        val (niterᵂ n w i) (λ r, r = cnv tr s₁ (inr x)) hist s₀ →
-        P (cnv tr s₁ x)
-      ) ∧
-      (* Finite iteration with final branch diverging *)
-      (∀ n st,
-        val (niterᵂ n w i) (λ r, r = div st) hist s₀ →
-        P (div st)
-      ) ∧
-      (* Infinite iteration *)
-      (∀ (js : nat → J) (trs : nat → trace) (ss : nat → state) s,
-        val (w i) (λ r, r = cnv (trs 0) (ss 0) (inl (js 0))) hist s₀ →
-        (∀ n,
-          val (w (js n))
-            (λ r, r = cnv (trs (S n)) (ss (S n)) (inl (js (S n))))
-            (rev_append (ttrunc trs n) hist)
-            (ss n)
-        ) →
-        s ⊑ trs →
-        P (div s)
-      ).
+    λ post hist s₀,
+      ∃ (P : J → W A),
+        (∀ j, val (P j) post hist s₀ → val (iter_expand w j P) post hist s₀) ∧
+        val (P i) post hist s₀.
 
   #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
     Monotonous (iterᵂ' w i).
   Proof.
     intros P Q hPQ hist s₀ h.
-    destruct h as [hfi [hdb hdi]].
-    split. 2: split.
-    - intros n tr s₁ x h.
-      apply hPQ. eapply hfi. eassumption.
-    - intros n st h.
-      apply hPQ. eapply hdb. eassumption.
-    - intros js trs ss s hi hn hs.
-      apply hPQ. eapply hdi. all: eassumption.
-  Qed.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - intros j hj.
+      eapply ismono. 1: eapply hPQ.
+      eapply helim. admit.
+    - eapply ismono.
+      + eapply hPQ.
+      + assumption.
+  Admitted.
 
   Definition iterᵂ [J A] w i :=
     as_wp (@iterᵂ' A J w i).
@@ -553,7 +530,7 @@ Section IIOStDiv.
           apply shift_post_mono.
           apply shift_post_nil_imp.
         * apply shift_post_nil_imp. assumption.
-      + destruct h as [h1 [h2 h3]].
+      + (* destruct h as [h1 [h2 h3]].
         split. 2: split.
         * intros n tr s₁ x h.
           apply ih. simpl. red. eapply ismono.
@@ -565,7 +542,8 @@ Section IIOStDiv.
         * intros n st h.
           eapply h2. eassumption.
         * intros js trs ss s hi hn hs.
-          eapply h3. all: eassumption.
+          eapply h3. all: eassumption. *)
+        admit.
       + simpl. red. simpl.
         simpl in h. red in h. simpl in h.
         apply ih. simpl. red.
@@ -619,7 +597,8 @@ Section IIOStDiv.
         * simpl. intro. eapply ismono. 2: eassumption.
           apply shift_post_mono. apply shift_post_nil_imp.
         * simpl. auto.
-  Qed.
+  (* Qed. *)
+  Admitted.
 
   Instance θ_reqlax : ReqLaxMorphism _ θ.
   Proof.
@@ -688,15 +667,6 @@ Section IIOStDiv.
   Proof.
     exists (iterᴹ (λ j, val (f j)) i).
     intros P hist s₀ [hpre hpost].
-    split. 2: split.
-    - intros n tr s₁ x h.
-      simpl. red. red. rewrite app_nil_r.
-      eapply hpost.
-      induction n.
-      + simpl in h. (* Variance problem... *) give_up.
-      + give_up.
-    - give_up.
-    - give_up.
   Abort.
 
 End IIOStDiv.
