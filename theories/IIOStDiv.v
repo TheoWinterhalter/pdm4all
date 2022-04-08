@@ -71,6 +71,52 @@ Section IIOStDiv.
     | inftrace s => inftrace (stream_prepend tr s)
     end.
 
+  Lemma stream_prepend_app :
+    ∀ A t t' (s : nat → A),
+      stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
+  Proof.
+    intros A t t' s.
+    extensionality n.
+    induction t as [| a t ih] in t', s, n |- *.
+    - simpl. reflexivity.
+    - destruct n.
+      + simpl. reflexivity.
+      + simpl. apply ih.
+  Qed.
+
+  Lemma strace_prepend_nil :
+    ∀ s,
+      strace_prepend [] s = s.
+  Proof.
+    intros [].
+    - simpl. reflexivity.
+    - simpl. reflexivity.
+  Qed.
+
+  Lemma strace_prepend_app :
+    ∀ t t' s,
+      strace_prepend t (strace_prepend t' s) = strace_prepend (t ++ t') s.
+  Proof.
+    intros t t' [].
+    - simpl. rewrite app_assoc. reflexivity.
+    - simpl. rewrite stream_prepend_app. reflexivity.
+  Qed.
+
+  Lemma trace_refine_prepend :
+    ∀ (tr : trace) (st : strace) (s : nat → trace),
+      st ⊑ s →
+      strace_prepend tr st ⊑ stream_prepend [tr] s.
+  Proof.
+    intros tr st s h.
+    destruct st as [t | t].
+    - destruct h as [n h].
+      exists (length tr + n). intros m hm.
+      (* TODO Lemma for ttrunc of stream_prepend *)
+      admit.
+    - intros n. simpl in h.
+      admit.
+  Admitted.
+
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
     | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
@@ -208,15 +254,6 @@ Section IIOStDiv.
       | div st => P (div (strace_prepend tr st))
       end.
 
-  Lemma strace_prepend_nil :
-    ∀ s,
-      strace_prepend [] s = s.
-  Proof.
-    intros [].
-    - simpl. reflexivity.
-    - simpl. reflexivity.
-  Qed.
-
   Lemma shift_post_nil :
     ∀ A (P : postᵂ A) r,
       shift_post [] P r → P r.
@@ -246,28 +283,6 @@ Section IIOStDiv.
     destruct r.
     - apply h. assumption.
     - apply h. assumption.
-  Qed.
-
-  Lemma stream_prepend_app :
-    ∀ A t t' (s : nat → A),
-      stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
-  Proof.
-    intros A t t' s.
-    extensionality n.
-    induction t as [| a t ih] in t', s, n |- *.
-    - simpl. reflexivity.
-    - destruct n.
-      + simpl. reflexivity.
-      + simpl. apply ih.
-  Qed.
-
-  Lemma strace_prepend_app :
-    ∀ t t' s,
-      strace_prepend t (strace_prepend t' s) = strace_prepend (t ++ t') s.
-  Proof.
-    intros t t' [].
-    - simpl. rewrite app_assoc. reflexivity.
-    - simpl. rewrite stream_prepend_app. reflexivity.
   Qed.
 
   Lemma shift_post_app :
