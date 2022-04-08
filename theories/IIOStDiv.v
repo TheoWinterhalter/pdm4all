@@ -634,6 +634,24 @@ Section IIOStDiv.
 
   (* Actions *)
 
+  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i : D A (iterᵂ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    intros P hist s₀ h.
+    simpl. simpl in h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - intros j. etransitivity. 2: eapply helim.
+      (* Need iter_expand_mono or something *)
+      admit.
+    - eapply ismono. 2: exact hi.
+      intros [].
+      + red. red. rewrite app_nil_r. auto.
+      + auto.
+  Admitted.
+
+  (* Some invariant testing *)
+
   Definition prepostᵂ' [A] (pre : preᵂ) (post : history → postᵂ A) : W' A :=
     λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → P r).
 
