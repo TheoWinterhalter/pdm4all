@@ -680,7 +680,21 @@ Section IIOStDiv.
   Definition prepostᵂ [A] pre post :=
     as_wp (@prepostᵂ' A pre post).
 
-  Definition invᵂ A :=
+  Lemma prepostᵂ_mono :
+    ∀ A (p p' : preᵂ) (q q' : history → postᵂ A),
+      (∀ hist s₀, p' hist s₀ → p hist s₀) →
+      (∀ hist r, q hist r → q' hist r) →
+      prepostᵂ p q ≤ᵂ prepostᵂ p' q'.
+  Proof.
+    intros A p p' q q' hp hq.
+    intros post hist s₀ h.
+    destruct h as [hp' hq'].
+    split.
+    - apply hp. apply hp'.
+    - intros r hr. apply hq'. apply hq. apply hr.
+  Qed.
+
+(*   Definition invᵂ A :=
     (* trace → state → Prop. *)
     postᵂ A.
 
