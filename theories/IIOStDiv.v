@@ -543,20 +543,19 @@ Section IIOStDiv.
           apply shift_post_mono.
           apply shift_post_nil_imp.
         * apply shift_post_nil_imp. assumption.
-      + (* destruct h as [h1 [h2 h3]].
-        split. 2: split.
-        * intros n tr s₁ x h.
-          apply ih. simpl. red. eapply ismono.
-          2:{ eapply h1. eassumption. }
-          intros []. all: simpl. 2: auto.
-          rewrite !rev_append_rev. rewrite rev_app_distr. rewrite app_assoc.
+      + simpl. simpl in h.
+        destruct h as [iᵂ [helim hi]].
+        exists iᵂ. split. 1: assumption.
+        eapply ismono. 2: exact hi.
+        simpl. intros [tr s₁ x | st] hh. 2: assumption.
+        eapply ih. simpl. red.
+        eapply ismono. 2: eapply hh.
+        simpl. intros [].
+        * simpl. rewrite !rev_append_rev. rewrite !app_assoc.
+          rewrite rev_app_distr.
           intro. eapply ismono. 2: eassumption.
-          apply shift_post_app.
-        * intros n st h.
-          eapply h2. eassumption.
-        * intros js trs ss s hi hn hs.
-          eapply h3. all: eassumption. *)
-        admit.
+          intros. apply shift_post_app. assumption.
+        * simpl. auto.
       + simpl. red. simpl.
         simpl in h. red in h. simpl in h.
         apply ih. simpl. red.
@@ -610,8 +609,7 @@ Section IIOStDiv.
         * simpl. intro. eapply ismono. 2: eassumption.
           apply shift_post_mono. apply shift_post_nil_imp.
         * simpl. auto.
-  (* Qed. *)
-  Admitted.
+  Qed.
 
   Instance θ_reqlax : ReqLaxMorphism _ θ.
   Proof.
