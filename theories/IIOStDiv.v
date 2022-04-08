@@ -475,7 +475,7 @@ Section IIOStDiv.
   Qed.
 
   Definition iterᵂ [J A] w i :=
-    as_wp (@iterᵂ' A J w i).
+    as_wp (@iterᵂ' J A w i).
 
   Lemma iterᵂ_unfold :
     ∀ J A (w : J → W (J + A)) (i : J),
@@ -661,7 +661,7 @@ Section IIOStDiv.
       + auto.
   Defined.
 
-  (* Some invariant testing *)
+  (* pre and post combinator *)
 
   Definition prepostᵂ' [A] (pre : preᵂ) (post : history → postᵂ A) : W' A :=
     λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → P r).
@@ -694,33 +694,45 @@ Section IIOStDiv.
     - intros r hr. apply hq'. apply hq. apply hr.
   Qed.
 
-(*   Definition invᵂ A :=
-    (* trace → state → Prop. *)
-    postᵂ A.
+  (** Some invariant testing *)
 
-  Definition iter_inv_bodyᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W (J + A) :=
-    prepostᵂ (pre i) (λ hist r,
-      inv r ∧
+  (* Case: the body always terminates to some inl *)
+
+  Definition always_continuesᵂ [J A] (inv : J → preᵂ) (i : J) : W (J + A) :=
+    prepostᵂ (inv i) (λ hist r,
       match r with
-      | cnv tr s (inl j) => pre j (rev_append tr hist) s
-      | cnv tr s (inr x) => True
+      | cnv tr s (inl j) => inv j (rev_append tr hist) s
+      | _ => False
+      end
+    ).
+
+  Definition inv_loopᵂ [J A] (inv : J → preᵂ) (i : J) : W A :=
+    prepostᵂ (inv i) (λ hist r,
+      (* We would need an invariant on traces to conclude about st *)
+      match r with
       | div st => True
+      | _ => False
       end
     ).
 
-  Definition iter_invᵂ [J A] (pre : J → preᵂ) (inv : invᵂ (J + A)) (i : J) : W A :=
-    prepostᵂ (pre i) (λ hist r,
-      match r with
-      | cnv tr s x => inv (cnv tr s (inr x))
-      | div st => inv (div st)
-      end
-    ).
-
-  Definition iter_invᴰ [J A] pre inv (f : ∀ (j : J), D (J + A) (iter_inv_bodyᵂ pre inv j)) (i : J) :
-    D A (iter_invᵂ pre inv i).
+  Lemma always_continues :
+    ∀ J A inv i,
+      @iterᵂ J A (always_continuesᵂ inv) i ≤ᵂ inv_loopᵂ inv i.
   Proof.
-    exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ [hpre hpost].
-  Abort.
+    intros J A inv i.
+    intros post hist s₀ h.
+    eexists. split. 2: eassumption.
+    intros j. intros post' hist' s₀' h'.
+    simpl in h'. simpl.
+    destruct h' as [hpre hpost].
+    split.
+    - assumption.
+    - intros [tr s [k | x] | st] hk. 2,3: contradiction.
+      split.
+      + assumption.
+      + intros []. 1: contradiction.
+        intros _. simpl.
+        eapply hpost. constructor.
+  Qed.
 
 End IIOStDiv.
