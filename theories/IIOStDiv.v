@@ -399,15 +399,6 @@ Section IIOStDiv.
   Definition histᵂ : W history :=
     as_wp histᵂ'.
 
-  (* Specification of iter using an impredicative encoding *)
-  Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
-    bindᵂ (w i) (λ x,
-      match x with
-      | inl j => k j
-      | inr y => retᵂ y
-      end
-    ).
-
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
     bind := bindᵂ
@@ -443,6 +434,26 @@ Section IIOStDiv.
     simpl. intros [tr s₁ x| st] hf.
     - apply hwf. assumption.
     - assumption.
+  Qed.
+
+  (* Specification of iter using an impredicative encoding *)
+  Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
+    bind (w i) (λ x,
+      match x with
+      | inl j => k j
+      | inr y => retᵂ y
+      end
+    ).
+
+  Lemma iter_expand_mono :
+    ∀ J A (w w' : J → W (J + A)) (i : J) (k : J → W A),
+      w i ≤ᵂ w' i →
+      iter_expand w i k ≤ᵂ iter_expand w' i k.
+  Proof.
+    intros J A w w' i k hw.
+    unfold iter_expand. eapply bind_mono.
+    - apply hw.
+    - intro. reflexivity.
   Qed.
 
   Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
@@ -642,13 +653,13 @@ Section IIOStDiv.
     destruct h as [iᵂ [helim hi]].
     exists iᵂ. split.
     - intros j. etransitivity. 2: eapply helim.
-      (* Need iter_expand_mono or something *)
-      admit.
+      apply iter_expand_mono.
+      eapply prf.
     - eapply ismono. 2: exact hi.
       intros [].
       + red. red. rewrite app_nil_r. auto.
       + auto.
-  Admitted.
+  Defined.
 
   (* Some invariant testing *)
 
