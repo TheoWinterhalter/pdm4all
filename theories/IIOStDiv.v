@@ -10,7 +10,7 @@
 *)
 
 From Coq Require Import Utf8 RelationClasses List PropExtensionality
-  FunctionalExtensionality Lia.
+  FunctionalExtensionality Arith Lia.
 From PDM Require Import util structures guarded PURE.
 From PDM Require PDM.
 
@@ -52,7 +52,7 @@ Section IIOStDiv.
   Definition trace_refine (t : strace) (s : nat → trace) : Prop :=
     match t with
     | fintrace t => ∃ n, ∀ m, n ≤ m → t = ttrunc s m
-    | inftrace t => ∀ n, ttrunc s n = strunc t (length (ttrunc s n))
+    | inftrace t => ∀ n, ∃ m k, n ≤ m ∧ strunc t m = ttrunc s k
     end.
 
   Notation "t ⊑ s" := (trace_refine t s) (at level 80).
@@ -102,6 +102,19 @@ Section IIOStDiv.
     - simpl. rewrite stream_prepend_app. reflexivity.
   Qed.
 
+  Lemma strunc_stream_prepend_gt :
+    ∀ A (l : list A) s n,
+      n ≥ length l →
+      strunc (stream_prepend l s) n = l ++ strunc s (n - length l).
+  Proof.
+    intros A l s n hn.
+    induction l as [| x l ih] in s, n, hn |- *.
+    - simpl. f_equal. lia.
+    - simpl in hn.
+      destruct n as [| n]. 1: lia.
+      cbn - [strace_prepend]. f_equal. apply ih. lia.
+  Qed.
+
   Lemma trace_refine_prepend :
     ∀ (tr : trace) (st : strace) (s : nat → trace),
       st ⊑ s →
@@ -115,13 +128,21 @@ Section IIOStDiv.
       rewrite (h m). 2: lia.
       reflexivity.
     - intros n. simpl in h.
-      induction n as [| n ih] in t, s, h |- *.
-      + reflexivity.
-      + simpl. unfold ttrunc. simpl.
-        rewrite app_length.
-        (* Lemma on strunc of stream_prepend *)
-        admit.
-  Admitted.
+      destruct (dec_le n (length tr)) as [hn | hn].
+      + exists (length tr), 1.
+        split. 1: assumption.
+        unfold ttrunc. simpl.
+        rewrite strunc_stream_prepend_gt. 2: lia.
+        replace (length tr - length tr) with 0 by lia.
+        reflexivity.
+      + specialize (h (n - length tr)). destruct h as [m [k [hm e]]].
+        exists (m + length tr), (S k).
+        split. 1: lia.
+        unfold ttrunc. simpl.
+        rewrite strunc_stream_prepend_gt. 2: lia.
+        f_equal. replace (m + length tr - length tr) with m by lia.
+        apply e.
+  Qed.
 
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
