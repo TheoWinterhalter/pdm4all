@@ -534,6 +534,29 @@ Section IIOStDiv.
     - assumption.
   Qed.
 
+  Lemma iterᵂ_coind :
+    ∀ J A (w : J → W (J + A)) (i : J) (w' : J → W A),
+      (∀ j, iter_expand w j w' ≤ᵂ w' j) →
+      iterᵂ w i ≤ᵂ w' i.
+  Proof.
+    intros J A w i w' h.
+    intros post hist s₀ h'.
+    exists w'. split. all: assumption.
+  Qed.
+
+  Lemma iterᵂ_fold :
+    ∀ J A (w : J → W (J + A)) (i : J),
+    iterᵂ w i ≤ᵂ iter_expand w i (iterᵂ w).
+  Proof.
+    intros J A w i.
+    eapply iterᵂ_coind with (w' := λ i, iter_expand _ i _). clear i.
+    intros i.
+    eapply bind_mono. 1: reflexivity.
+    intros [].
+    - apply iterᵂ_unfold.
+    - reflexivity.
+  Qed.
+
   Definition liftᵂ [A] (w : pure_wp A) : W A.
   Proof.
     exists (λ P hist s₀, val w (λ x, P (cnv [] s₀ x))).
