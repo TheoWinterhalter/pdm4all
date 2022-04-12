@@ -803,4 +803,18 @@ Section IIOStDiv.
         * apply trace_refine_prepend. assumption.
   Qed.
 
+  (* Sadly, the current iterᵂ can prove any spec for a loop. *)
+  Lemma always_wrong :
+    ∀ J A (i : J) w,
+      @iterᵂ J A (λ j, ret (inl j)) i ≤ᵂ w.
+  Proof.
+    intros J A i w.
+    eapply iterᵂ_coind with (w' := λ j, _).
+    intros j. intros post hist s₀ h.
+    simpl. red.
+    rewrite rev_append_rev. simpl.
+    eapply ismono. 2: exact h.
+    apply shift_post_nil_imp.
+  Qed.
+
 End IIOStDiv.
