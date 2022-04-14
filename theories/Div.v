@@ -703,6 +703,40 @@ Proof.
     + intro n. apply hs.
 Qed.
 
+Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
+  bind (w i) (λ x,
+    match x with
+    | inl j => k j
+    | inr y => ret y
+    end
+  ).
+
+Lemma θ_iter_coind :
+  ∀ J A (f : J → M (J + A)) (i : J) w,
+    (∀ j, iter_expand (λ k, θ (f k)) j w ≤ᵂ w j) →
+    θ (iterᴹ f i) ≤ᵂ w i.
+Proof.
+  intros J A f i w h.
+  intros post hw.
+  split. 2: split.
+  - intros pre k hk.
+    depelim hk. depelim H. rewrite structures.right_id in hk.
+    eapply bind_finred_inv in hk.
+    destruct hk as [[c' [hr e]] | [[j|x] [h1 h2]]].
+    + destruct c' as [[] | |]. all: simpl in e. all: noconf e.
+      eapply h in hw. eapply hw. eassumption.
+    + (* We need a form of induction somewhere. *)
+      admit.
+    + eapply ret_finred_inv in h2. noconf h2.
+  - intros x hx.
+    depelim hx. depelim H. rewrite structures.right_id in hx.
+    unfold iter_one in hx. eapply bind_finred_ret_inv in hx.
+    destruct hx as [y [hfi hy]].
+    admit.
+  - intros s hs.
+    (* Would need stuff like iter_finred_inv or iter_infred_inv *)
+Abort.
+
 (* Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
   λ P,
     (* Finite iteration *)
