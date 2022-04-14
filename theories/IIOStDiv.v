@@ -483,7 +483,7 @@ Section IIOStDiv.
     bind (w i) (λ x,
       match x with
       | inl j => k j
-      | inr y => retᵂ y
+      | inr y => ret y
       end
     ).
 
@@ -498,6 +498,7 @@ Section IIOStDiv.
     - intro. reflexivity.
   Qed.
 
+  (* Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
   Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
     λ post hist s₀,
       ∃ (P : J → W A),
@@ -816,5 +817,16 @@ Section IIOStDiv.
     eapply ismono. 2: exact h.
     apply shift_post_nil_imp.
   Qed.
+
+  (* Test with another version of iterᵂ with step counting *)
+
+  (* Specification of iter using an impredicative encoding *)
+  Definition step_iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W (nat * A)) : W (nat * A) :=
+    bind (w i) (λ x,
+      match x with
+      | inl j => bind (k j) (λ '(n, y), ret (S n, y))
+      | inr y => ret (0, y)
+      end
+    ).
 
 End IIOStDiv.
