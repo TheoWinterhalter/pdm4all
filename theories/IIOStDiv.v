@@ -498,6 +498,27 @@ Section IIOStDiv.
     - intro. reflexivity.
   Qed.
 
+  (* Inline everyhting to use Coq coinductive types. *)
+  (* Rejected because of non strictly positive occurrence. *)
+  (* Definition bindᵂ'' [A B] (w : W' A) (wf : A → W' B) : W' B :=
+    λ P hist s₀,
+      w (λ r,
+        match r with
+        | cnv tr s₁ x => wf x (shift_post tr P) (rev_append tr hist) s₁
+        | div s => P (div s)
+        end
+      ) hist s₀.
+
+  CoInductive iterᵂ' [J A] (w : J → W (J + A)) (i : J) post hist s₀ : Prop :=
+  | Build_iterᵂ (h :
+      bindᵂ'' (val (w i)) (λ x,
+        match x with
+        | inl j => iterᵂ' w j
+        | inr y => retᵂ' y
+        end
+      ) post hist s₀
+    ). *)
+
   (* Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
   Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
     λ post hist s₀,
