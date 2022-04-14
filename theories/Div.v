@@ -703,7 +703,7 @@ Proof.
     + intro n. apply hs.
 Qed.
 
-Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+(* Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
   λ P,
     (* Finite iteration *)
     (∀ (js : list J) x,
@@ -764,4 +764,4 @@ Definition iterᴰ [J A] w (f : ∀ i, D (J + A) (w i)) (i : J) : D A (iterᵂ w
 Proof.
   exists (iterᴹ (λ j, val (f j)) i).
   apply θ_iter.
-Defined.
+Defined. *)
