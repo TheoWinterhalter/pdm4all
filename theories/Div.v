@@ -665,6 +665,44 @@ Proof.
       * apply hs.
 Qed.
 
+Lemma θ_iter_unfold :
+  ∀ J A (f : J → M (J + A)) (i : J),
+    θ (iter_one f i) ≤ᵂ θ (iterᴹ f i).
+Proof.
+  intros J A f i.
+  eapply θ_red.
+  evar (c : M A).
+  replace (iter_one f i) with c.
+  - subst c. econstructor.
+  - subst c. apply structures.right_id.
+Qed.
+
+Lemma θ_iter_fold :
+  ∀ J A (f : J → M (J + A)) (i : J),
+    θ (iterᴹ f i) ≤ᵂ θ (iter_one f i).
+Proof.
+  intros J A f i.
+  intros post [hu [hc hd]].
+  split. 2: split.
+  - intros pre k hk.
+    depelim hk. depelim H.
+    eapply bind_finred_inv in hk.
+    destruct hk as [[c' [hr e]] | [x [h1 h2]]].
+    2:{ eapply ret_finred_inv in h2. noconf h2. }
+    rewrite structures.right_id in e. subst.
+    eapply hu. eassumption.
+  - intros x hx.
+    depelim hx. depelim H. rewrite structures.right_id in hx.
+    eapply hc. assumption.
+  - intros s [hs0 hs].
+    eapply hd with (s := λ n, s (S n)).
+    split.
+    + specialize (hs 0). rewrite <- hs0 in hs. depelim hs.
+      rewrite H. change (retᴹ ?x) with (ret (M := M) x).
+      rewrite structures.right_id. reflexivity.
+    + intro n. apply hs.
+Qed.
+
 Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
   λ P,
     (* Finite iteration *)
