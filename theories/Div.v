@@ -642,7 +642,28 @@ Definition D A w : Type :=
 Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
   PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
 
-(* Actions *)
+(* Reasoning about iter *)
+
+Lemma θ_red :
+  ∀ A (c c' : M A),
+    c ▹ c' →
+    θ c' ≤ᵂ θ c.
+Proof.
+  intros A c c' h.
+  intros post [hu [hc hd]].
+  split. 2: split.
+  - intros pre k' hk'.
+    eapply hu. econstructor. all: eassumption.
+  - intros x hx.
+    eapply hc. econstructor. all: eassumption.
+  - intros s hs.
+    eapply hd with (s := λ n, match n with 0 => c | S n => s n end).
+    split.
+    + reflexivity.
+    + intros [| n].
+      * destruct hs as [e ?]. subst. assumption.
+      * apply hs.
+Qed.
 
 Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
   λ P,
