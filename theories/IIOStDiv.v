@@ -13,6 +13,8 @@ From Coq Require Import Utf8 RelationClasses List PropExtensionality
   FunctionalExtensionality Arith Lia.
 From PDM Require Import util structures guarded PURE.
 From PDM Require PDM.
+From Equations Require Import Equations.
+Require Equations.Prop.DepElim.
 
 Import ListNotations.
 
@@ -458,13 +460,15 @@ Section IIOStDiv.
   Definition retᴵ [A] (x : A) : Wᴵ A :=
     as_wpᴵ (retᴵ' x).
 
-  #[program] Definition shift_postᴵ [A] (tr : otrace) (P : postᴵ A) : postᴵ A :=
-    λ r,
-      match r with
-      | ocnv tr' s x => P (ocnv (tr ++ tr') s x)
-      | odiv st => P (odiv (stream_prepend tr st))
-      end.
-  Next Obligation.
+  #[tactic=idtac] Equations? shift_postᴵ [A] (tr : otrace) (P : postᴵ A) : postᴵ A :=
+    shift_postᴵ tr P :=
+      ⟨ λ r,
+          match r with
+          | ocnv tr' s x => val P (ocnv (tr ++ tr') s x)
+          | odiv st => val P (odiv (stream_prepend tr st))
+          end
+      ⟩.
+  Proof.
     intros r r' h hp.
     destruct P as [P hP].
     destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
@@ -475,15 +479,16 @@ Section IIOStDiv.
       simpl. apply uptotau_prepend. all: auto.
   Qed.
 
-  (* #[program] Definition bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
-    λ P hist s₀,
-      w (λ r,
-        match r with
-        | ocnv tr s₁ x => wf x (shift_postᴵ tr P) (rev_append (to_trace tr) hist) s₁
-        | odiv s => P (odiv s)
-        end
-      ) hist s₀.
-  Next Obligation.
+  #[tactic=idtac] Equations? bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
+    bindᴵ' w wf :=
+      λ P hist s₀,
+        val w ⟨ λ r,
+          match r with
+          | ocnv tr s₁ x => val (wf x) (shift_postᴵ tr P) (rev_append (to_trace tr) hist) s₁
+          | odiv s => val P (odiv s)
+          end
+        ⟩ hist s₀.
+  Proof.
     intros r r' h hp.
     destruct P as [P hP].
     destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
@@ -499,7 +504,7 @@ Section IIOStDiv.
         * apply uptotau_refl.
     - simpl in *. eapply hP. 2: eassumption.
       simpl. assumption.
-  Qed. *)
+  Qed.
 
   (* #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
     Monotonous (bindᴵ' w wf).
