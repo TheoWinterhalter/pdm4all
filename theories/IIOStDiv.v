@@ -481,6 +481,14 @@ Section IIOStDiv.
       simpl. apply uptotau_prepend. all: auto.
   Qed.
 
+  Lemma shift_postᴵ_nil :
+    ∀ A (P : postᴵ A) r,
+      val (shift_postᴵ [] P) r → val P r.
+  Proof.
+    intros A P r h.
+    destruct r. all: assumption.
+  Qed.
+
   #[tactic=idtac] Equations? bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
     bindᴵ' w wf :=
       λ P hist s₀,
@@ -749,7 +757,132 @@ Section IIOStDiv.
     - reflexivity.
   Qed.
 
-  (** Specification monad *)
+  Definition liftᴵ [A] (w : pure_wp A) : Wᴵ A.
+  Proof.
+    exists (λ P hist s₀, val w (λ x, val P (ocnv [] s₀ x))).
+    intros P Q hPQ hist s₀ h.
+    destruct w as [w mw].
+    eapply mw. 2: exact h.
+    simpl. intros x. apply hPQ.
+  Defined.
+
+  #[export] Instance hliftᴵ : PureSpec Wᴵ Order_Wᴵ liftᴵ.
+  Proof.
+    constructor.
+    intros A w f.
+    intros P hist s₀ h.
+    assert (hpre : val w (λ _, True)).
+    { unfold liftᴵ in h.
+      destruct w as [w hw].
+      eapply hw. 2: exact h.
+      auto.
+    }
+    cbv. exists hpre.
+    pose proof (prf (f hpre)) as hf. simpl in hf.
+    apply hf in h. assumption.
+  Qed.
+
+  (* Effect observation *)
+
+  Fixpoint θᴵ [A] (c : M A) : Wᴵ A :=
+    match c with
+    | retᴹ x => ret x
+    | act_getᴹ k => bind getᴵ (λ x, θᴵ (k x))
+    | act_putᴹ s k => bind (putᴵ s) (λ _, θᴵ k)
+    | act_reqᴹ p k => bind (reqᴵ p) (λ x, θᴵ (k x))
+    | act_iterᴹ J B g i k => bind (iterᴵ (λ i, θᴵ (g i)) i) (λ x, θᴵ (k x))
+    | act_openᴹ fp k => bind (openᴵ fp) (λ x, θᴵ (k x))
+    | act_readᴹ fd k => bind (readᴵ fd) (λ x, θᴵ (k x))
+    | act_closeᴹ fd k => bind (closeᴵ fd) (λ x, θᴵ k)
+    | act_histᴹ k => bind histᴵ (λ x, θᴵ (k x))
+    end.
+
+  Lemma bindᴵ_assoc :
+    ∀ A B C (w : Wᴵ A) (wf : A → Wᴵ B) (wg : B → Wᴵ C),
+      bind w (λ x, bind (wf x) wg) ≤ᵂ bind (bind w wf) wg.
+  Proof.
+    intros A B C w wf wg.
+    intros P hist s₀ h.
+    simpl. red.
+    simpl in h. red in h.
+    eapply ismonoᴵ. 2: exact h.
+    simpl. intros [].
+    - intro hf. red.
+      eapply ismonoᴵ. 2: exact hf.
+      simpl. intros [].
+      + rewrite !rev_append_rev. rewrite to_trace_app.
+        rewrite rev_app_distr. rewrite !app_assoc.
+        intro hg.
+        eapply ismonoᴵ. 2: exact hg.
+        intros [].
+        * simpl. rewrite app_assoc. auto.
+        * simpl. rewrite stream_prepend_app. auto.
+      + auto.
+    - auto.
+  Qed.
+
+  Instance θᴵ_lax : LaxMorphism θᴵ.
+  Proof.
+    constructor.
+    - intros A x.
+      reflexivity.
+    - intros A B c f.
+      induction c
+      as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih]
+      in B, f |- *.
+      2-9: cbn - [wle bind].
+      2-9: etransitivity ; [| eapply bindᴵ_assoc].
+      2-9: cbn - [wle].
+      2-9: change bindᴵ with bind.
+      2-9: eapply bind_mono ; [reflexivity |].
+      2-9: intro.
+      2-9: apply ih.
+      intros P hist s₀ h.
+      simpl. simpl in h.
+      eapply ismonoᴵ. 2: exact h.
+      apply shift_postᴵ_nil.
+  Qed.
+
+  Instance θᴵ_reqlax : ReqLaxMorphism _ θᴵ.
+  Proof.
+    constructor.
+    intros p. intros post hist s₀ h.
+    simpl. red. simpl.
+    simpl in h. red in h.
+    destruct h as [hp h]. exists hp. assumption.
+  Qed.
+
+  Definition Dᴵ A w : Type :=
+    PDM.D (θ := θᴵ) A w.
+
+  Instance DijkstraMonad_Dᴵ : DijkstraMonad Dᴵ :=
+    PDM.DijkstraMonad_D MonoSpec_Wᴵ θᴵ_lax.
+
+  (* Lift from PURE *)
+
+  Definition liftᴾ : ∀ A w, PURE A w → Dᴵ A (liftᴵ w) :=
+    PDM.liftᴾ (M := M) (W := Wᴵ) MonoSpec_Wᴵ θᴵ_lax θᴵ_reqlax hliftᴵ.
+
+  (* Actions *)
+
+  Definition iterᴰ [J A w] (f : ∀ (j : J), Dᴵ (J + A) (w j)) i : Dᴵ A (iterᴵ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    intros P hist s₀ h.
+    simpl. simpl in h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - intros j. etransitivity. 2: eapply helim.
+      apply iter_expand_mono.
+      eapply prf.
+    - eapply ismonoᴵ. 2: exact hi.
+      intros [].
+      + rewrite app_nil_r. auto.
+      + auto.
+  Defined.
+
+  (** OLD Specification monad *)
+  (* TODO Compose the two? *)
 
   (* TODO: Can we do something interesting about state in infinite branches? *)
   Inductive run A :=
