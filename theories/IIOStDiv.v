@@ -345,6 +345,17 @@ Section IIOStDiv.
 
   Notation "u ≈ v" := (eutt u v) (at level 80).
 
+  Lemma eutt_refl :
+    ∀ A (r : orun A),
+      r ≈ r.
+  Proof.
+    intros A r.
+    destruct r.
+    - simpl. intuition reflexivity.
+    - simpl.
+      (* This requires knowing whether s has an infinite amount of None *)
+  Abort.
+
   Definition resp_eutt [A] (p : orun A → Prop) : Prop :=
     ∀ r r', r ≈ r' → p r → p r'.
 
