@@ -80,7 +80,12 @@ Section IIOStDiv.
 
   Notation "t ⊆ s" := (sotrace_refine t s) (at level 80).
 
-  (* TODO MOVE *)
+  Definition embeds (s s' : sotrace) : Prop :=
+    ∀ n, ∃ m, to_trace (strunc s' n) = to_trace (strunc s m).
+
+  Definition uptotau (s s' : sotrace) : Prop :=
+    embeds s s' ∧ embeds s' s.
+
   Fixpoint stream_prepend [A] (l : list A) (s : nat → A) (n : nat) : A :=
     match l, n with
     | [], n => s n
@@ -236,6 +241,65 @@ Section IIOStDiv.
           exists (S m'). simpl. assumption.
   Qed.
 
+  Lemma embeds_refl :
+    ∀ s, embeds s s.
+  Proof.
+    intro s. intro n.
+    exists n. reflexivity.
+  Qed.
+
+  Lemma uptotau_refl :
+    ∀ s, uptotau s s.
+  Proof.
+    intro s. split. all: apply embeds_refl.
+  Qed.
+
+  Lemma embeds_prepend :
+    ∀ t t' s s',
+      to_trace t = to_trace t' →
+      embeds s s' →
+      embeds (stream_prepend t s) (stream_prepend t' s').
+  Proof.
+    intros t t' s s' ht hs.
+    intro n.
+    destruct (dec_le n (length t')) as [hn | hn].
+    - rewrite strunc_stream_prepend_le. 2: lia.
+      induction n as [| n ih] in t, t', ht |- *.
+      + exists 0. reflexivity.
+      + destruct t' as [| [] t'].
+        * rewrite firstn_nil. simpl. exists 0. reflexivity.
+        * {
+          simpl. simpl in ht.
+          induction t as [| [] t iht] in e, t', ht |- *.
+          - discriminate.
+          - simpl in ht. inversion ht. subst.
+            specialize (ih t t').
+            forward ih. { assumption. }
+            destruct ih as [m ih].
+            exists (S m). simpl. f_equal. assumption.
+          - simpl in ht. eapply iht in ht. destruct ht as [m h].
+            exists (S m). simpl. assumption.
+        }
+        * simpl. apply ih. assumption.
+    - rewrite strunc_stream_prepend_ge. 2: lia.
+      rewrite to_trace_app. rewrite <- ht.
+      specialize (hs (n - length t')). destruct hs as [m hm].
+      rewrite hm.
+      exists (m + length t). rewrite strunc_stream_prepend_ge. 2: lia.
+      rewrite to_trace_app. f_equal. f_equal. f_equal. lia.
+  Qed.
+
+  Lemma uptotau_prepend :
+    ∀ t t' s s',
+      to_trace t = to_trace t' →
+      uptotau s s' →
+      uptotau (stream_prepend t s) (stream_prepend t' s').
+  Proof.
+    intros t t' s s' ht [].
+    split.
+    all: apply embeds_prepend. all: eauto.
+  Qed.
+
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
     | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
@@ -339,7 +403,7 @@ Section IIOStDiv.
     | ocnv t s x, ocnv t' s' x' =>
       to_trace t = to_trace t' ∧ s = s' ∧ x = x'
     | odiv s, odiv s' =>
-      ∃ t, t ⊆ s ∧ t ⊆ s'
+      uptotau s s'
     | _, _ => False
     end.
 
@@ -352,9 +416,8 @@ Section IIOStDiv.
     intros A r.
     destruct r.
     - simpl. intuition reflexivity.
-    - simpl.
-      (* This requires knowing whether s has an infinite amount of None *)
-  Abort.
+    - simpl. apply uptotau_refl.
+  Qed.
 
   Definition resp_eutt [A] (p : orun A → Prop) : Prop :=
     ∀ r r', r ≈ r' → p r → p r'.
@@ -409,9 +472,7 @@ Section IIOStDiv.
       simpl. intuition subst.
       rewrite !to_trace_app. f_equal. assumption.
     - simpl in *. eapply hP. 2: eassumption.
-      destruct h as [t [h1 h2]].
-      exists (strace_prepend (to_trace tr) t). split.
-      all: apply sotrace_refine_prepend. all: assumption.
+      simpl. apply uptotau_prepend. all: auto.
   Qed.
 
   (* #[program] Definition bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
@@ -433,12 +494,12 @@ Section IIOStDiv.
         intuition auto.
         rewrite !to_trace_app. f_equal. assumption.
       + simpl. apply hP. simpl.
-        (* Make case above a lemma about eutt? And prove refl for it. *)
-        (* exists (strace_prepend (to_trace t) s). *)
-        admit.
+        apply uptotau_prepend.
+        * assumption.
+        * apply uptotau_refl.
     - simpl in *. eapply hP. 2: eassumption.
       simpl. assumption.
-  Abort. *)
+  Qed. *)
 
   (* #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
     Monotonous (bindᴵ' w wf).
