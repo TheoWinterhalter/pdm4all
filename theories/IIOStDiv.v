@@ -23,6 +23,8 @@ Set Printing Projections.
 Set Universe Polymorphism.
 Unset Universe Minimization ToSet.
 
+Set Equations Transparent.
+
 Section IIOStDiv.
 
   Context (state path file_descr file_content : Type).
@@ -274,7 +276,7 @@ Section IIOStDiv.
           simpl. simpl in ht.
           induction t as [| [] t iht] in e, t', ht |- *.
           - discriminate.
-          - simpl in ht. inversion ht. subst.
+          - simpl in ht. noconf ht.
             specialize (ih t t').
             forward ih. { assumption. }
             destruct ih as [m ih].
@@ -506,8 +508,8 @@ Section IIOStDiv.
       simpl. assumption.
   Qed.
 
-  (* #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
-    Monotonous (bindᴵ' w wf).
+  #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
+    Monotonousᴵ (bindᴵ' w wf).
   Proof.
     destruct w as [w mw].
     intros P Q hPQ hist s₀ h.
@@ -519,10 +521,10 @@ Section IIOStDiv.
       + simpl. apply hPQ. assumption.
       + simpl. apply hPQ. assumption.
     - apply hPQ. assumption.
-  Qed. *)
+  Qed.
 
-  (* Definition bindᴵ [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ B :=
-    as_wpᴵ (bindᴵ' w wf). *)
+  Definition bindᴵ [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ B :=
+    as_wpᴵ (bindᴵ' w wf).
 
   (** Specification monad *)
 
