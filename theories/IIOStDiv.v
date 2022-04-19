@@ -668,6 +668,87 @@ Section IIOStDiv.
     - assumption.
   Qed.
 
+  (* Specification of iter using an impredicative encoding *)
+  Definition iter_expand [J A] (w : J → Wᴵ (J + A)) (i : J) (k : J → Wᴵ A) : Wᴵ A :=
+    bind (w i) (λ x,
+      match x with
+      | inl j => bind tauᴵ (λ _, k j)
+      | inr y => ret y
+      end
+    ).
+
+  Lemma iter_expand_mono :
+    ∀ J A (w w' : J → Wᴵ (J + A)) (i : J) (k : J → Wᴵ A),
+      w i ≤ᵂ w' i →
+      iter_expand w i k ≤ᵂ iter_expand w' i k.
+  Proof.
+    intros J A w w' i k hw.
+    unfold iter_expand. eapply bind_mono.
+    - apply hw.
+    - intro. reflexivity.
+  Qed.
+
+  (* Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
+  Definition iterᴵ' [J A] (w : J → Wᴵ (J + A)) (i : J) : Wᴵ' A :=
+    λ post hist s₀,
+      ∃ (P : J → Wᴵ A),
+        (∀ j, iter_expand w j P ≤ᵂ P j) ∧
+        val (P i) post hist s₀.
+
+  #[export] Instance iterᴵ_ismono [J A] (w : J → Wᴵ (J + A)) (i : J) :
+    Monotonousᴵ (iterᴵ' w i).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - apply helim.
+    - eapply ismonoᴵ.
+      + eapply hPQ.
+      + assumption.
+  Qed.
+
+  Definition iterᴵ [J A] w i :=
+    as_wpᴵ (@iterᴵ' J A w i).
+
+  Lemma iterᴵ_unfold :
+    ∀ J A (w : J → Wᴵ (J + A)) (i : J),
+      iter_expand w i (iterᴵ w) ≤ᵂ iterᴵ w i.
+  Proof.
+    intros J A w i. intros post hist s₀ h.
+    destruct h as [iᵂ [helim hi]].
+    eapply helim in hi as h. simpl in h. red in h.
+    simpl. red. eapply ismonoᴵ. 2: exact h.
+    simpl. intros [tr s₁ [j | x] | st] hh.
+    - simpl. red.
+      exists iᵂ. split. all: auto.
+    - assumption.
+    - assumption.
+  Qed.
+
+  Lemma iterᴵ_coind :
+    ∀ J A (w : J → Wᴵ (J + A)) (i : J) (w' : J → Wᴵ A),
+      (∀ j, iter_expand w j w' ≤ᵂ w' j) →
+      iterᴵ w i ≤ᵂ w' i.
+  Proof.
+    intros J A w i w' h.
+    intros post hist s₀ h'.
+    exists w'. split. all: assumption.
+  Qed.
+
+  Lemma iterᴵ_fold :
+    ∀ J A (w : J → Wᴵ (J + A)) (i : J),
+    iterᴵ w i ≤ᵂ iter_expand w i (iterᴵ w).
+  Proof.
+    intros J A w i.
+    eapply iterᴵ_coind with (w' := λ i, iter_expand _ i _). clear i.
+    intros i.
+    eapply bind_mono. 1: reflexivity.
+    intros [].
+    - eapply bind_mono. 1: reflexivity.
+      intros _. apply iterᴵ_unfold.
+    - reflexivity.
+  Qed.
+
   (** Specification monad *)
 
   (* TODO: Can we do something interesting about state in infinite branches? *)
@@ -916,7 +997,7 @@ Section IIOStDiv.
   Qed.
 
   (* Specification of iter using an impredicative encoding *)
-  Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
+  (* Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
     bind (w i) (λ x,
       match x with
       | inl j => k j
@@ -933,7 +1014,7 @@ Section IIOStDiv.
     unfold iter_expand. eapply bind_mono.
     - apply hw.
     - intro. reflexivity.
-  Qed.
+  Qed. *)
 
   (* Inline everyhting to use Coq coinductive types. *)
   (* Rejected because of non strictly positive occurrence. *)
@@ -957,7 +1038,7 @@ Section IIOStDiv.
     ). *)
 
   (* Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
-  Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+  (* Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
     λ post hist s₀,
       ∃ (P : J → W A),
         (∀ j, iter_expand w j P ≤ᵂ P j) ∧
@@ -976,9 +1057,9 @@ Section IIOStDiv.
   Qed.
 
   Definition iterᵂ [J A] w i :=
-    as_wp (@iterᵂ' J A w i).
+    as_wp (@iterᵂ' J A w i). *)
 
-  Lemma iterᵂ_unfold :
+  (* Lemma iterᵂ_unfold :
     ∀ J A (w : J → W (J + A)) (i : J),
       iter_expand w i (iterᵂ w) ≤ᵂ iterᵂ w i.
   Proof.
@@ -1014,7 +1095,7 @@ Section IIOStDiv.
     intros [].
     - apply iterᵂ_unfold.
     - reflexivity.
-  Qed.
+  Qed. *)
 
   Definition liftᵂ [A] (w : pure_wp A) : W A.
   Proof.
@@ -1043,7 +1124,7 @@ Section IIOStDiv.
 
   (* Effect observation *)
 
-  Fixpoint θ [A] (c : M A) : W A :=
+  (* Fixpoint θ [A] (c : M A) : W A :=
     match c with
     | retᴹ x => ret x
     | act_getᴹ k => bind getᵂ (λ x, θ (k x))
@@ -1285,6 +1366,6 @@ Section IIOStDiv.
       | inl j => bind (k j) (λ '(n, y), ret (S n, y))
       | inr y => ret (0, y)
       end
-    ).
+    ). *)
 
 End IIOStDiv.
