@@ -75,7 +75,7 @@ Section IIOStDiv.
   Definition sotrace_refine (t : strace) (s : sotrace) : Prop :=
     match t with
     | fintrace t => ∃ n, ∀ m, n ≤ m → t = to_trace (strunc s m)
-    | inftrace t => ∀ n, ∃ m k, n ≤ m ∧ strunc t m = to_trace (strunc s k)
+    | inftrace t => ∀ n, ∃ m, strunc t n = to_trace (strunc s m)
     end.
 
   Notation "t ⊆ s" := (sotrace_refine t s) (at level 80).
@@ -125,7 +125,7 @@ Section IIOStDiv.
     - simpl. rewrite stream_prepend_app. reflexivity.
   Qed.
 
-  Lemma strunc_stream_prepend_gt :
+  Lemma strunc_stream_prepend_ge :
     ∀ A (l : list A) s n,
       n ≥ length l →
       strunc (stream_prepend l s) n = l ++ strunc s (n - length l).
@@ -136,6 +136,21 @@ Section IIOStDiv.
     - simpl in hn.
       destruct n as [| n]. 1: lia.
       cbn - [strace_prepend]. f_equal. apply ih. lia.
+  Qed.
+
+  Lemma strunc_stream_prepend_le :
+    ∀ A (l : list A) s n,
+      n ≤ length l →
+      strunc (stream_prepend l s) n = firstn n l.
+  Proof.
+    intros A l s n hn.
+    induction l as [| x l ih] in s, n, hn |- *.
+    - simpl in hn. destruct n. 2: lia.
+      simpl. reflexivity.
+    - simpl in hn.
+      destruct n as [| n].
+      + reflexivity.
+      + cbn - [strace_prepend]. f_equal. apply ih. lia.
   Qed.
 
   Lemma trace_refine_prepend :
@@ -155,14 +170,14 @@ Section IIOStDiv.
       + exists (length tr), 1.
         split. 1: assumption.
         unfold ttrunc. simpl.
-        rewrite strunc_stream_prepend_gt. 2: lia.
+        rewrite strunc_stream_prepend_ge. 2: lia.
         replace (length tr - length tr) with 0 by lia.
         reflexivity.
       + specialize (h (n - length tr)). destruct h as [m [k [hm e]]].
         exists (m + length tr), (S k).
         split. 1: lia.
         unfold ttrunc. simpl.
-        rewrite strunc_stream_prepend_gt. 2: lia.
+        rewrite strunc_stream_prepend_ge. 2: lia.
         f_equal. replace (m + length tr - length tr) with m by lia.
         apply e.
   Qed.
@@ -187,12 +202,39 @@ Section IIOStDiv.
     destruct t as [t | t].
     - simpl in *. destruct h as [n h].
       exists (length tr + n). intros m hm.
-      rewrite strunc_stream_prepend_gt. 2: lia.
+      rewrite strunc_stream_prepend_ge. 2: lia.
       rewrite to_trace_app. f_equal.
       apply h. lia.
     - simpl in *. intro n.
-      (* sotrace_refine can be simpler! *)
-  Admitted.
+      destruct (dec_le n (length (to_trace tr))) as [hn | hn].
+      + rewrite strunc_stream_prepend_le. 2: assumption.
+        induction tr as [| [] tr ih] in n |- *.
+        * exists 0. simpl. rewrite firstn_nil. reflexivity.
+        * {
+          cbn - [stream_prepend].
+          destruct n as [| n].
+          - exists 0. reflexivity.
+          - cbn - [stream_prepend].
+            destruct (ih n) as [m em].
+            exists (S m). simpl. f_equal. apply em.
+        }
+        * {
+          cbn - [stream_prepend].
+          destruct (ih n) as [m em].
+          exists (S m). simpl. apply em.
+        }
+      + rewrite strunc_stream_prepend_ge. 2: lia.
+        destruct (h (n - length (to_trace tr))) as [m em].
+        rewrite em.
+        induction tr as [| [] tr ih] in |- *.
+        * cbn - [stream_prepend]. exists m. reflexivity.
+        * cbn - [stream_prepend].
+          destruct ih as [m' e'].
+          exists (S m'). simpl. f_equal. assumption.
+        * cbn - [stream_prepend].
+          destruct ih as [m' e'].
+          exists (S m'). simpl. assumption.
+  Qed.
 
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
@@ -361,7 +403,7 @@ Section IIOStDiv.
       all: apply sotrace_refine_prepend. all: assumption.
   Qed.
 
-  #[program] Definition bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
+  (* #[program] Definition bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
     λ P hist s₀,
       w (λ r,
         match r with
@@ -385,7 +427,7 @@ Section IIOStDiv.
         admit.
     - simpl in *. eapply hP. 2: eassumption.
       simpl. assumption.
-  Abort.
+  Abort. *)
 
   (* #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
     Monotonous (bindᴵ' w wf).
