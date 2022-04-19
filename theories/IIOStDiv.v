@@ -526,6 +526,148 @@ Section IIOStDiv.
   Definition bindᴵ [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ B :=
     as_wpᴵ (bindᴵ' w wf).
 
+  Definition reqᴵ' (p : Prop) : Wᴵ' p :=
+    λ P hist s₀, ∃ (h : p), val P (ocnv [] s₀ h).
+
+  #[export] Instance reqᴵ_ismono : ∀ p, Monotonousᴵ (reqᴵ' p).
+  Proof.
+    intros p. intros P Q hPQ hist s₀ h.
+    destruct h as [hp h].
+    exists hp. apply hPQ. assumption.
+  Qed.
+
+  Definition reqᴵ (p : Prop) : Wᴵ p :=
+    as_wpᴵ (reqᴵ' p).
+
+  Definition tauᴵ' : Wᴵ' unit :=
+    λ P hist s₀, val P (ocnv [ None ] s₀ tt).
+
+  #[export] Instance tauᴵ_ismono : Monotonousᴵ tauᴵ'.
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition tauᴵ : Wᴵ unit :=
+    as_wpᴵ tauᴵ'.
+
+  Definition getᴵ' : Wᴵ' state :=
+    λ P hist s, val P (ocnv [] s s).
+
+  Instance getᴵ_ismono : Monotonousᴵ getᴵ'.
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    red. red in h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition getᴵ : Wᴵ state :=
+    as_wpᴵ getᴵ'.
+
+  Definition putᴵ' (s : state) : Wᴵ' unit :=
+    λ P hist s₀, val P (ocnv [] s tt).
+
+  Instance putᴵ_ismono : ∀ s, Monotonousᴵ (putᴵ' s).
+  Proof.
+    intros s. intros P Q hPQ hist s₀ h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition putᴵ (s : state) : Wᴵ unit :=
+    as_wpᴵ (putᴵ' s).
+
+  Definition openᴵ' (fp : path) : Wᴵ' file_descr :=
+    λ P hist s₀, ∀ fd, val P (ocnv [ Some (EOpen fp fd) ] s₀ fd).
+
+  Instance openᴵ_ismono : ∀ fp, Monotonousᴵ (openᴵ' fp).
+  Proof.
+    intros fp. intros P Q hPQ hist s₀ h.
+    intro fd.
+    apply hPQ. apply h.
+  Qed.
+
+  Definition openᴵ (fp : path) : Wᴵ file_descr :=
+    as_wpᴵ (openᴵ' fp).
+
+  Definition readᴵ' (fd : file_descr) : Wᴵ' file_content :=
+    λ P hist s₀, is_open fd hist ∧ ∀ fc, val P (ocnv [ Some (ERead fd fc) ] s₀ fc).
+
+  Instance readᴵ_ismono : ∀ fd, Monotonousᴵ (readᴵ' fd).
+  Proof.
+    intros fd. intros P Q hPQ hist s₀ h.
+    destruct h as [ho h].
+    split.
+    - assumption.
+    - intro fc. apply hPQ. apply h.
+  Qed.
+
+  Definition readᴵ (fd : file_descr) : Wᴵ file_content :=
+    as_wpᴵ (readᴵ' fd).
+
+  Definition closeᴵ' (fd : file_descr) : Wᴵ' unit :=
+    λ P hist s₀, is_open fd hist ∧ val P (ocnv [ Some (EClose fd) ] s₀ tt).
+
+  Instance closeᴵ_ismono : ∀ fd, Monotonousᴵ (closeᴵ' fd).
+  Proof.
+    intros fd. intros P Q hPQ hist s₀ h.
+    destruct h as [ho h].
+    split.
+    - assumption.
+    - apply hPQ. assumption.
+  Qed.
+
+  Definition closeᴵ (fd : file_descr) : Wᴵ unit :=
+    as_wpᴵ (closeᴵ' fd).
+
+  Definition histᴵ' : Wᴵ' history :=
+    λ P hist s₀, val P (ocnv [] s₀ hist).
+
+  Instance histᴵ_ismono : Monotonousᴵ histᴵ'.
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    apply hPQ. assumption.
+  Qed.
+
+  Definition histᴵ : Wᴵ history :=
+    as_wpᴵ histᴵ'.
+
+  #[export] Instance Monad_Wᴵ : Monad Wᴵ := {|
+    ret := retᴵ ;
+    bind := bindᴵ
+  |}.
+
+  #[export] Instance ReqMonad_Wᴵ : ReqMonad Wᴵ := {|
+    req := reqᴵ
+  |}.
+
+  Definition wleᴵ [A] (w₀ w₁ : Wᴵ A) : Prop :=
+    ∀ P hist s₀, val w₁ P hist s₀ → val w₀ P hist s₀.
+
+  #[export] Instance Order_Wᴵ : Order Wᴵ.
+  Proof.
+    exists wleᴵ.
+    intros A x y z h₁ h₂. intros P hist s₀ h.
+    apply h₁. apply h₂.
+    assumption.
+  Defined.
+
+  #[export] Instance Reflexive_wleᴵ [A] : Reflexive (wleᴵ (A := A)).
+  Proof.
+    intro w. intros p hist s₀ h. assumption.
+  Qed.
+
+  #[export] Instance MonoSpec_Wᴵ : MonoSpec Wᴵ.
+  Proof.
+    constructor.
+    intros A B w w' wf wf' hw hwf.
+    intros P hist s₀ h.
+    hnf. hnf in h.
+    apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
+    simpl. intros [tr s₁ x| st] hf.
+    - apply hwf. assumption.
+    - assumption.
+  Qed.
+
   (** Specification monad *)
 
   (* TODO: Can we do something interesting about state in infinite branches? *)
@@ -756,7 +898,7 @@ Section IIOStDiv.
     assumption.
   Defined.
 
-  #[export] Instance pure_wp_refl [A] : Reflexive (wle (A := A)).
+  #[export] Instance Reflexive_wle [A] : Reflexive (wle (A := A)).
   Proof.
     intro w. intros p hist s₀ h. assumption.
   Qed.
