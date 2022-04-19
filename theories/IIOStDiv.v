@@ -48,7 +48,7 @@ Section IIOStDiv.
   Definition ttrunc (s : nat → trace) (n : nat) : trace :=
     concat (strunc s n).
 
-  (* A strace refining a stream of traces *)
+  (* An strace refining a stream of traces *)
   Definition trace_refine (t : strace) (s : nat → trace) : Prop :=
     match t with
     | fintrace t => ∃ n, ∀ m, n ≤ m → t = ttrunc s m
@@ -56,6 +56,29 @@ Section IIOStDiv.
     end.
 
   Notation "t ⊑ s" := (trace_refine t s) (at level 80).
+
+  (* Traces including silent steps (tau from itrees) *)
+
+  Definition otrace :=
+    list (option event).
+
+  Definition sotrace :=
+    nat → option event.
+
+  Fixpoint to_trace (t : otrace) : trace :=
+    match t with
+    | [] => []
+    | Some e :: t => e :: to_trace t
+    | None :: t => to_trace t
+    end.
+
+  Definition sotrace_refine (t : strace) (s : sotrace) : Prop :=
+    match t with
+    | fintrace t => ∃ n, ∀ m, n ≤ m → t = to_trace (strunc s m)
+    | inftrace t => ∀ n, ∃ m k, n ≤ m ∧ strunc t m = to_trace (strunc s k)
+    end.
+
+  Notation "t ⊆ s" := (sotrace_refine t s) (at level 80).
 
   (* TODO MOVE *)
   Fixpoint stream_prepend [A] (l : list A) (s : nat → A) (n : nat) : A :=
@@ -231,7 +254,56 @@ Section IIOStDiv.
       all: simpl ; f_equal ; try apply functional_extensionality ; auto.
   Qed.
 
-  (** Specifiation monad *)
+  (** Specification monad from Dijkstra Monads for ever *)
+
+  (* Similar to itrace *)
+  Inductive orun A :=
+  | ocnv (t : otrace) (s : state) (x : A)
+  | odiv (s : sotrace).
+
+  Arguments ocnv [_].
+  Arguments odiv [_].
+
+  (* Equal up to tau *)
+  Definition eutt [A] (r r' : orun A) : Prop :=
+    match r, r' with
+    | ocnv t s x, ocnv t' s' x' =>
+      to_trace t = to_trace t' ∧ s = s' ∧ x = x'
+    | odiv s, odiv s' =>
+      ∃ t, t ⊆ s ∧ t ⊆ s'
+    | _, _ => False
+    end.
+
+  Notation "u ≈ v" := (eutt u v) (at level 80).
+
+  Definition resp_eutt [A] (p : orun A → Prop) : Prop :=
+    ∀ r r', r ≈ r' → p r → p r'.
+
+  Definition preᴵ :=
+    history → state → Prop.
+
+  Definition postᴵ A :=
+    { post : orun A → Prop | resp_eutt post }.
+
+  Definition Wᴵ' A := postᴵ A → preᴵ.
+
+  Class Monotonousᴵ [A] (w : Wᴵ' A) :=
+    ismonoᴵ :
+      ∀ (P Q : postᴵ A),
+        (∀ x, val P x → val Q x) →
+        ∀ hist s₀, w P hist s₀ → w Q hist s₀.
+
+  Definition Wᴵ A := { w : Wᴵ' A | Monotonousᴵ w }.
+
+  Definition as_wpᴵ [A] (w : Wᴵ' A) {h : Monotonousᴵ w} : Wᴵ A :=
+    exist _ w h.
+
+  Instance Monotonousᴵ_val [A] (w : Wᴵ A) : Monotonousᴵ (val w).
+  Proof.
+    destruct w. assumption.
+  Qed.
+
+  (** Specification monad *)
 
   (* TODO: Can we do something interesting about state in infinite branches? *)
   Inductive run A :=
