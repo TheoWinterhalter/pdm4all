@@ -167,6 +167,33 @@ Section IIOStDiv.
         apply e.
   Qed.
 
+  Lemma to_trace_app :
+    ∀ t t',
+      to_trace (t ++ t') = to_trace t ++ to_trace t'.
+  Proof.
+    intros t t'.
+    induction t as [| [] ? ih] in t' |- *.
+    - reflexivity.
+    - simpl. f_equal. apply ih.
+    - simpl. apply ih.
+  Qed.
+
+  Lemma sotrace_refine_prepend :
+    ∀ tr t s,
+      t ⊆ s →
+      strace_prepend (to_trace tr) t ⊆ stream_prepend tr s.
+  Proof.
+    intros tr t s h.
+    destruct t as [t | t].
+    - simpl in *. destruct h as [n h].
+      exists (length tr + n). intros m hm.
+      rewrite strunc_stream_prepend_gt. 2: lia.
+      rewrite to_trace_app. f_equal.
+      apply h. lia.
+    - simpl in *. intro n.
+      (* sotrace_refine can be simpler! *)
+  Admitted.
+
   Fixpoint is_open (fd : file_descr) (hist : history) : Prop :=
     match hist with
     | EOpen fp fd' :: hh => fd = fd' ∨ is_open fd hh
@@ -302,6 +329,81 @@ Section IIOStDiv.
   Proof.
     destruct w. assumption.
   Qed.
+
+  Definition retᴵ' [A] (x : A) : Wᴵ' A :=
+    λ P hist s₀, val P (ocnv [] s₀ x).
+
+  #[export] Instance retᴵ_ismono [A] (x : A) : Monotonousᴵ (retᴵ' x).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    apply hPQ. apply h.
+  Qed.
+
+  Definition retᴵ [A] (x : A) : Wᴵ A :=
+    as_wpᴵ (retᴵ' x).
+
+  #[program] Definition shift_postᴵ [A] (tr : otrace) (P : postᴵ A) : postᴵ A :=
+    λ r,
+      match r with
+      | ocnv tr' s x => P (ocnv (tr ++ tr') s x)
+      | odiv st => P (odiv (stream_prepend tr st))
+      end.
+  Next Obligation.
+    intros r r' h hp.
+    destruct P as [P hP].
+    destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
+    - simpl in *. eapply hP. 2: eassumption.
+      simpl. intuition subst.
+      rewrite !to_trace_app. f_equal. assumption.
+    - simpl in *. eapply hP. 2: eassumption.
+      destruct h as [t [h1 h2]].
+      exists (strace_prepend (to_trace tr) t). split.
+      all: apply sotrace_refine_prepend. all: assumption.
+  Qed.
+
+  #[program] Definition bindᴵ' [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ' B :=
+    λ P hist s₀,
+      w (λ r,
+        match r with
+        | ocnv tr s₁ x => wf x (shift_postᴵ tr P) (rev_append (to_trace tr) hist) s₁
+        | odiv s => P (odiv s)
+        end
+      ) hist s₀.
+  Next Obligation.
+    intros r r' h hp.
+    destruct P as [P hP].
+    destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
+    - simpl in h. destruct h as [et [es ex]]. subst.
+      rewrite <- et. eapply ismonoᴵ. 2: eassumption.
+      intros [].
+      + simpl. apply hP. simpl.
+        intuition auto.
+        rewrite !to_trace_app. f_equal. assumption.
+      + simpl. apply hP. simpl.
+        (* Make case above a lemma about eutt? And prove refl for it. *)
+        (* exists (strace_prepend (to_trace t) s). *)
+        admit.
+    - simpl in *. eapply hP. 2: eassumption.
+      simpl. assumption.
+  Abort.
+
+  (* #[export] Instance bindᴵ_ismono [A B] (w : Wᴵ A) (wf : A → Wᴵ B) :
+    Monotonous (bindᴵ' w wf).
+  Proof.
+    destruct w as [w mw].
+    intros P Q hPQ hist s₀ h.
+    eapply mw. 2: exact h.
+    simpl. intros [tr s₁ x| st] hf.
+    - destruct (wf x) as [wf' mwf].
+      eapply mwf. 2: exact hf.
+      intros [] hr.
+      + simpl. apply hPQ. assumption.
+      + simpl. apply hPQ. assumption.
+    - apply hPQ. assumption.
+  Qed. *)
+
+  (* Definition bindᴵ [A B] (w : Wᴵ A) (wf : A → Wᴵ B) : Wᴵ B :=
+    as_wpᴵ (bindᴵ' w wf). *)
 
   (** Specification monad *)
 
