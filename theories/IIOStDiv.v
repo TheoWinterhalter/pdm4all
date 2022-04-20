@@ -1250,6 +1250,35 @@ Section IIOStDiv.
   Qed.
 
   (* TODO MOVE *)
+  Lemma strunc_stream_skip :
+    ∀ A (s : nat → A) n m,
+      strunc (stream_skipn s n) m = skipn n (strunc s (n + m)).
+  Proof.
+    intros A s n m.
+    induction n as [| n ih] in m, s |- *.
+    - simpl. reflexivity.
+    - simpl. rewrite <- ih. reflexivity.
+  Qed.
+
+  Lemma firstn_to_trace_strunc :
+    ∀ s n k,
+      ∃ m, firstn n (to_trace (strunc s k)) = to_trace (strunc s m).
+  Proof.
+    intros s n k.
+    induction n as [| n ih] in k, s |- *.
+    - simpl. exists 0. reflexivity.
+    - induction k as [| k ihk] in s |- *.
+      + simpl. exists 0. reflexivity.
+      + simpl to_trace. destruct (s 0) eqn:e.
+        * simpl. specialize (ih (λ p, s (S p)) k). destruct ih as [m h].
+          rewrite h.
+          exists (S m). simpl. rewrite e. reflexivity.
+        * specialize (ihk (λ p, s (S p))). destruct ihk as [m h].
+          rewrite h.
+          exists (S m). simpl. rewrite e. reflexivity.
+  Qed.
+
+  (* TODO MOVE *)
   Lemma sotrace_refine_prepend_inv :
     ∀ st t s,
       st ⊆ stream_prepend t s →
@@ -1300,23 +1329,28 @@ Section IIOStDiv.
         rewrite <- e'. rewrite strunc_length.
         rewrite stream_prepend_skipn. reflexivity.
       + simpl. intros n.
-        specialize (h (length (to_trace t) + n)). destruct h as [m' h].
-        destruct (dec_le (length t) m') as [hm' | hm'].
-        2:{
-          rewrite strunc_stream_prepend_le in h. 2: lia.
-          apply (f_equal (λ l, length l)) in h as eh.
-          rewrite strunc_length in eh.
-          pose proof (length_to_trace (firstn m' t)) as hl.
-          rewrite firstn_length_le in hl. 2: lia.
-          rewrite <- eh in hl.
-          pose proof (length_to_trace t).
-          give_up.
-        }
-        rewrite strunc_ge with (n := length (to_trace t)) in h. 2: lia.
-        rewrite e' in h.
+        specialize (h (length t + n)). destruct h as [m' h].
+        apply (f_equal (λ l, length l)) in h as eh.
+        rewrite strunc_length in eh.
+        pose proof (length_to_trace (strunc (stream_prepend t s) m')) as eht.
+        rewrite strunc_length in eht. rewrite <- eh in eht.
         rewrite strunc_stream_prepend_ge in h. 2: lia.
         rewrite to_trace_app in h.
-  Abort.
+        apply (f_equal (firstn (length (to_trace t) + n))) in h as h'.
+        rewrite strunc_ge with (n := length (to_trace t) + n) in h'.
+        2:{ pose proof (length_to_trace t). lia. }
+        rewrite firstn_app in h'.
+        rewrite firstn_all2 in h'. 2:{ rewrite strunc_length. auto. }
+        rewrite strunc_length in h'.
+        replace (length (to_trace t) + n - (length (to_trace t) + n)) with 0 in h' by lia.
+        simpl in h'. rewrite app_nil_r in h'.
+        rewrite firstn_app_2 in h'.
+        rewrite strunc_ge with (n := length (to_trace t)) in h'. 2: lia.
+        rewrite e' in h'.
+        apply app_inv_head in h'.
+        rewrite strunc_stream_skip. rewrite h'.
+        apply firstn_to_trace_strunc.
+  Qed.
 
   Instance θ_lax : LaxMorphism θ.
   Proof.
@@ -1353,8 +1387,12 @@ Section IIOStDiv.
             simpl in h. rewrite to_trace_app. assumption.
           - destruct r as [| st]. 1: contradiction.
             simpl in hr.
-            (* Need to invert hr *)
-            admit.
+            apply sotrace_refine_prepend_inv in hr.
+            destruct hr as [st' [? hr]]. subst.
+            specialize (h (div st')).
+            forward h.
+            { simpl. assumption. }
+            assumption.
         }
         * intros r hr.
           destruct r as [| st]. 1: contradiction.
@@ -1362,7 +1400,7 @@ Section IIOStDiv.
           forward h.
           { assumption. }
           simpl in h. assumption.
-  Admitted.
+  Qed.
 
   Instance θ_reqlax : ReqLaxMorphism _ θ.
   Proof.
