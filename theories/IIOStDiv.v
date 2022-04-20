@@ -1068,29 +1068,67 @@ Section IIOStDiv.
     | _, _ => False
     end.
 
-  Lemma embeds_sotrace_refine :
+  (* TODO MOVE *)
+  Lemma strunc_ge :
+    ∀ A (s : nat → A) n m,
+      n ≤ m →
+      strunc s m = strunc s n ++ skipn n (strunc s m).
+  Proof.
+    intros A s n m h.
+    induction m as [| m ih] in n, s, h |- *.
+    - simpl. rewrite skipn_nil.
+      assert (n = 0) by lia. subst.
+      reflexivity.
+    - simpl. destruct n.
+      + simpl. reflexivity.
+      + simpl. f_equal. apply ih. lia.
+  Qed.
+
+  (* TODO MOVE *)
+  Lemma app_id_inv :
+    ∀ A (l l' : list A),
+      l ++ l' = l →
+      l' = [].
+  Proof.
+    intros A l l' e.
+    induction l as [| a l ih] in l', e |- *.
+    - assumption.
+    - apply ih. simpl in e. noconf e. assumption.
+  Qed.
+
+  Lemma uptotau_sotrace_refine :
     ∀ s₁ s₂ s,
-      embeds s₁ s₂ →
+      uptotau s₁ s₂ →
       s ⊆ s₂ →
       s ⊆ s₁.
   Proof.
-    intros s₁ s₂ s es h.
-    unfold embeds in es.
+    intros s₁ s₂ s [es₁ es₂] h.
+    unfold embeds in *.
     destruct s.
     - simpl in *. destruct h as [n h].
       specialize (h n) as hn. forward hn by lia. subst.
-      (* Is one of my definitions wrong? *)
-
-      (* specialize (es n) as esn. destruct esn as [n' h'].
+      specialize (es₁ n) as esn. destruct esn as [n' h'].
       exists n'. intros m hm.
-      specialize (es m) as esm. destruct esm as [m' e].
-      rewrite e. apply h. *)
-      give_up.
+      specialize (es₂ m) as esm. destruct esm as [m' hm'].
+      destruct (dec_le n m') as [hn | hn].
+      + rewrite hm'. apply h. assumption.
+      + rewrite strunc_ge with (n := m') in h'. 2: lia.
+        rewrite to_trace_app in h'.
+        erewrite strunc_ge in hm'. 2: eassumption.
+        rewrite to_trace_app in hm'. rewrite <- h' in hm'.
+        rewrite <- !app_assoc in hm'.
+        apply app_id_inv in hm'. apply app_eq_nil in hm'.
+        destruct hm' as [e1 e2].
+        rewrite strunc_ge with (n := m'). 2: lia.
+        symmetry.
+        erewrite strunc_ge. 2: eassumption.
+        rewrite !to_trace_app. rewrite e1, e2.
+        rewrite e1 in h'. rewrite h'. apply app_nil_r.
     - simpl in *. intros n.
       specialize (h n). destruct h as [m h].
-      specialize (es m). destruct es as [k e].
+      specialize (es₁ m). destruct es₁ as [k e].
       exists k. rewrite h. assumption.
-  Admitted.
+  Qed.
 
   Lemma eutt_refine_run :
     ∀ A r₁ r₂ (r : run A),
@@ -1103,8 +1141,7 @@ Section IIOStDiv.
     - destruct r. 2: contradiction.
       simpl in *. intuition subst. all: eauto.
     - destruct r. 1: contradiction.
-      simpl in *. eapply embeds_sotrace_refine. 2: eassumption.
-      apply er.
+      simpl in *. eapply uptotau_sotrace_refine. all: eassumption.
   Qed.
 
   #[tactic=idtac] Equations? fromᴵ' [A] (wᴵ : Wᴵ A) : W' A :=
