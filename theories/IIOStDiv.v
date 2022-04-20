@@ -357,7 +357,7 @@ Section IIOStDiv.
     req p := act_reqᴹ p (λ h, retᴹ h)
   |}.
 
-  Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) :=
+  Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) : M A :=
     act_iterᴹ J A f i (λ x, ret x).
 
   Definition getᴹ : M state :=
@@ -852,37 +852,7 @@ Section IIOStDiv.
     destruct h as [hp h]. exists hp. assumption.
   Qed.
 
-  Definition Dᴵ A w : Type :=
-    PDM.D (θ := θᴵ) A w.
-
-  Instance DijkstraMonad_Dᴵ : DijkstraMonad Dᴵ :=
-    PDM.DijkstraMonad_D MonoSpec_Wᴵ θᴵ_lax.
-
-  (* Lift from PURE *)
-
-  Definition liftᴾ : ∀ A w, PURE A w → Dᴵ A (liftᴵ w) :=
-    PDM.liftᴾ (M := M) (W := Wᴵ) MonoSpec_Wᴵ θᴵ_lax θᴵ_reqlax hliftᴵ.
-
-  (* Actions *)
-
-  Definition iterᴰ [J A w] (f : ∀ (j : J), Dᴵ (J + A) (w j)) i : Dᴵ A (iterᴵ w i).
-  Proof.
-    exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ h.
-    simpl. simpl in h.
-    destruct h as [iᵂ [helim hi]].
-    exists iᵂ. split.
-    - intros j. etransitivity. 2: eapply helim.
-      apply iter_expand_mono.
-      eapply prf.
-    - eapply ismonoᴵ. 2: exact hi.
-      intros [].
-      + rewrite app_nil_r. auto.
-      + auto.
-  Defined.
-
-  (** OLD Specification monad *)
-  (* TODO Compose the two? *)
+  (* Final specification monad *)
 
   (* TODO: Can we do something interesting about state in infinite branches? *)
   Inductive run A :=
@@ -931,46 +901,6 @@ Section IIOStDiv.
       | cnv tr' s x => P (cnv (tr ++ tr') s x)
       | div st => P (div (strace_prepend tr st))
       end.
-
-  Lemma shift_post_nil :
-    ∀ A (P : postᵂ A) r,
-      shift_post [] P r → P r.
-  Proof.
-    intros A P r h.
-    destruct r.
-    - apply h.
-    - simpl in h. rewrite strace_prepend_nil in h. assumption.
-  Qed.
-
-  Lemma shift_post_nil_imp :
-    ∀ A (P : postᵂ A) r,
-      P r → shift_post [] P r.
-  Proof.
-    intros A P r h.
-    destruct r.
-    - apply h.
-    - simpl. rewrite strace_prepend_nil. assumption.
-  Qed.
-
-  Lemma shift_post_mono :
-    ∀ A tr (P Q : postᵂ A),
-      (∀ r, P r → Q r) →
-      ∀ r, shift_post tr P r → shift_post tr Q r.
-  Proof.
-    intros A tr P Q h r hP.
-    destruct r.
-    - apply h. assumption.
-    - apply h. assumption.
-  Qed.
-
-  Lemma shift_post_app :
-    ∀ A t t' (P : postᵂ A) r,
-      shift_post (t' ++ t) P r → shift_post t (shift_post t' P) r.
-  Proof.
-    intros A t t' P [] h.
-    - simpl in *. rewrite app_assoc. assumption.
-    - simpl in *. rewrite strace_prepend_app. assumption.
-  Qed.
 
   Definition bindᵂ' [A B] (w : W A) (wf : A → W B) : W' B :=
     λ P hist s₀,
@@ -1129,106 +1059,190 @@ Section IIOStDiv.
     - assumption.
   Qed.
 
-  (* Specification of iter using an impredicative encoding *)
-  (* Definition iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W A) : W A :=
-    bind (w i) (λ x,
-      match x with
-      | inl j => k j
-      | inr y => ret y
-      end
-    ).
+  (* Connection between W and Wᴵ *)
 
-  Lemma iter_expand_mono :
-    ∀ J A (w w' : J → W (J + A)) (i : J) (k : J → W A),
-      w i ≤ᵂ w' i →
-      iter_expand w i k ≤ᵂ iter_expand w' i k.
+  Definition refine_run [A] (r : run A) (r' : orun A) :=
+    match r, r' with
+    | cnv t s x, ocnv t' s' x' => t = to_trace t' ∧ s = s' ∧ x = x'
+    | div s, odiv s' => s ⊆ s'
+    | _, _ => False
+    end.
+
+  Lemma embeds_sotrace_refine :
+    ∀ s₁ s₂ s,
+      embeds s₁ s₂ →
+      s ⊆ s₂ →
+      s ⊆ s₁.
   Proof.
-    intros J A w w' i k hw.
-    unfold iter_expand. eapply bind_mono.
-    - apply hw.
-    - intro. reflexivity.
-  Qed. *)
+    intros s₁ s₂ s es h.
+    unfold embeds in es.
+    destruct s.
+    - simpl in *. destruct h as [n h].
+      specialize (h n) as hn. forward hn by lia. subst.
+      (* Is one of my definitions wrong? *)
 
-  (* Inline everyhting to use Coq coinductive types. *)
-  (* Rejected because of non strictly positive occurrence. *)
-  (* Definition bindᵂ'' [A B] (w : W' A) (wf : A → W' B) : W' B :=
-    λ P hist s₀,
-      w (λ r,
-        match r with
-        | cnv tr s₁ x => wf x (shift_post tr P) (rev_append tr hist) s₁
-        | div s => P (div s)
-        end
-      ) hist s₀.
+      (* specialize (es n) as esn. destruct esn as [n' h'].
+      exists n'. intros m hm.
+      specialize (es m) as esm. destruct esm as [m' e].
+      rewrite e. apply h. *)
+      give_up.
+    - simpl in *. intros n.
+      specialize (h n). destruct h as [m h].
+      specialize (es m). destruct es as [k e].
+      exists k. rewrite h. assumption.
+  Admitted.
 
-  CoInductive iterᵂ' [J A] (w : J → W (J + A)) (i : J) post hist s₀ : Prop :=
-  | Build_iterᵂ (h :
-      bindᵂ'' (val (w i)) (λ x,
-        match x with
-        | inl j => iterᵂ' w j
-        | inr y => retᵂ' y
-        end
-      ) post hist s₀
-    ). *)
+  Lemma eutt_refine_run :
+    ∀ A r₁ r₂ (r : run A),
+      r₁ ≈ r₂ →
+      refine_run r r₂ →
+      refine_run r r₁.
+  Proof.
+    intros A r₁ r₂ r er h.
+    destruct r₁, r₂. 2,3: contradiction.
+    - destruct r. 2: contradiction.
+      simpl in *. intuition subst. all: eauto.
+    - destruct r. 1: contradiction.
+      simpl in *. eapply embeds_sotrace_refine. 2: eassumption.
+      apply er.
+  Qed.
 
-  (* Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
-  (* Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    λ post hist s₀,
-      ∃ (P : J → W A),
-        (∀ j, iter_expand w j P ≤ᵂ P j) ∧
-        val (P i) post hist s₀.
+  #[tactic=idtac] Equations? fromᴵ' [A] (wᴵ : Wᴵ A) : W' A :=
+    fromᴵ' wᴵ :=
+      λ P hist s₀, val wᴵ ⟨ λ r', ∀ r, refine_run r r' → P r ⟩ hist s₀.
+  Proof.
+    intros r₁ r₂ er h. intros r hr.
+    apply h. eapply eutt_refine_run. all: eassumption.
+  Qed.
 
-  #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
-    Monotonous (iterᵂ' w i).
+  Instance fromᴵ_ismono [A] (wᴵ : Wᴵ A) : Monotonous (fromᴵ' wᴵ).
   Proof.
     intros P Q hPQ hist s₀ h.
+    red. red in h.
+    eapply ismonoᴵ. 2: exact h.
+    simpl. intros r' hP r hr.
+    apply hPQ. apply hP. assumption.
+  Qed.
+
+  Definition fromᴵ [A] (wᴵ : Wᴵ A) : W A :=
+    as_wp (fromᴵ' wᴵ).
+
+  Lemma fromᴵ_mono :
+    ∀ A (w w' : Wᴵ A),
+      w ≤ᵂ w' →
+      fromᴵ w ≤ᵂ fromᴵ w'.
+  Proof.
+    intros A w w' hw.
+    intros P hist s₀ h.
+    simpl. red. simpl in h. red in h.
+    eapply hw. assumption.
+  Qed.
+
+  (** Dijstra monad in the style of DM4ever *)
+
+  Definition Dᴵ A w : Type :=
+    PDM.D (θ := θᴵ) A w.
+
+  Instance DijkstraMonad_Dᴵ : DijkstraMonad Dᴵ :=
+    PDM.DijkstraMonad_D MonoSpec_Wᴵ θᴵ_lax.
+
+  (* Lift from PURE *)
+
+  Definition liftᴾᴵ : ∀ A w, PURE A w → Dᴵ A (liftᴵ w) :=
+    PDM.liftᴾ (M := M) (W := Wᴵ) MonoSpec_Wᴵ θᴵ_lax θᴵ_reqlax hliftᴵ.
+
+  (* Actions *)
+
+  Definition iterᴰᴵ [J A w] (f : ∀ (j : J), Dᴵ (J + A) (w j)) i : Dᴵ A (iterᴵ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    intros P hist s₀ h.
+    simpl. simpl in h.
     destruct h as [iᵂ [helim hi]].
     exists iᵂ. split.
-    - apply helim.
-    - eapply ismono.
-      + eapply hPQ.
-      + assumption.
+    - intros j. etransitivity. 2: eapply helim.
+      apply iter_expand_mono.
+      eapply prf.
+    - eapply ismonoᴵ. 2: exact hi.
+      intros [].
+      + rewrite app_nil_r. auto.
+      + auto.
+  Defined.
+
+  (** Dijstra monad without taus *)
+
+  Definition θ [A] (c : M A) : W A :=
+    fromᴵ (θᴵ c).
+
+  Instance θ_lax : LaxMorphism θ.
+  Proof.
+    constructor.
+    - intros A x.
+      unfold θ. etransitivity.
+      + eapply fromᴵ_mono. eapply θ_ret.
+      + intros P hist s h.
+        simpl. simpl in h. red in h.
+        intros [] hr. 2: contradiction.
+        simpl in hr. intuition subst.
+        assumption.
+    - intros A B c f.
+      unfold θ. etransitivity.
+      + eapply fromᴵ_mono. eapply θ_bind.
+      + intros P hist s h.
+        simpl. red. simpl in h. red in h.
+        eapply ismonoᴵ. 2: exact h.
+        clear h.
+        simpl. intros [t s' x | s'] h.
+        * {
+          specialize (h (cnv (to_trace t) s' x)).
+          forward h.
+          { simpl. intuition reflexivity. }
+          simpl in h. red in h.
+          eapply ismonoᴵ. 2: exact h.
+          simpl. clear.
+          intros [t' s x | s] h r hr.
+          - destruct r. 2: contradiction.
+            simpl in hr. intuition subst.
+            specialize (h (cnv (to_trace t') s x)).
+            forward h.
+            { simpl. intuition reflexivity. }
+            simpl in h. rewrite to_trace_app. assumption.
+          - destruct r as [| st]. 1: contradiction.
+            simpl in hr.
+            (* Need to invert hr *)
+            admit.
+        }
+        * intros r hr.
+          destruct r as [| st]. 1: contradiction.
+          specialize (h (div st)).
+          forward h.
+          { assumption. }
+          simpl in h. assumption.
+  Admitted.
+
+  Instance θ_reqlax : ReqLaxMorphism _ θ.
+  Proof.
+    constructor.
+    intros p.
+    unfold θ. etransitivity.
+    - eapply fromᴵ_mono. eapply θ_req.
+    - intros post hist s₀ h.
+      simpl. red.
+      simpl in h. red in h.
+      destruct h as [hp h]. exists hp.
+      intros r hr.
+      destruct r. 2: contradiction.
+      simpl in hr. intuition subst.
+      assumption.
   Qed.
 
-  Definition iterᵂ [J A] w i :=
-    as_wp (@iterᵂ' J A w i). *)
+  Definition D A w : Type :=
+    PDM.D (θ := θ) A w.
 
-  (* Lemma iterᵂ_unfold :
-    ∀ J A (w : J → W (J + A)) (i : J),
-      iter_expand w i (iterᵂ w) ≤ᵂ iterᵂ w i.
-  Proof.
-    intros J A w i. intros post hist s₀ h.
-    destruct h as [iᵂ [helim hi]].
-    eapply helim in hi as h. simpl in h. red in h.
-    simpl. red. eapply ismono. 2: exact h.
-    simpl. intros [tr s₁ [j | x] | st] hh.
-    - simpl. red.
-      exists iᵂ. split. all: auto.
-    - assumption.
-    - assumption.
-  Qed.
+  Instance DijkstraMonad_D : DijkstraMonad D :=
+    PDM.DijkstraMonad_D WMono θ_lax.
 
-  Lemma iterᵂ_coind :
-    ∀ J A (w : J → W (J + A)) (i : J) (w' : J → W A),
-      (∀ j, iter_expand w j w' ≤ᵂ w' j) →
-      iterᵂ w i ≤ᵂ w' i.
-  Proof.
-    intros J A w i w' h.
-    intros post hist s₀ h'.
-    exists w'. split. all: assumption.
-  Qed.
-
-  Lemma iterᵂ_fold :
-    ∀ J A (w : J → W (J + A)) (i : J),
-    iterᵂ w i ≤ᵂ iter_expand w i (iterᵂ w).
-  Proof.
-    intros J A w i.
-    eapply iterᵂ_coind with (w' := λ i, iter_expand _ i _). clear i.
-    intros i.
-    eapply bind_mono. 1: reflexivity.
-    intros [].
-    - apply iterᵂ_unfold.
-    - reflexivity.
-  Qed. *)
+  (* Lift from PURE *)
 
   Definition liftᵂ [A] (w : pure_wp A) : W A.
   Proof.
@@ -1255,131 +1269,16 @@ Section IIOStDiv.
     apply hf in h. assumption.
   Qed.
 
-  (* Effect observation *)
-
-  (* Fixpoint θ [A] (c : M A) : W A :=
-    match c with
-    | retᴹ x => ret x
-    | act_getᴹ k => bind getᵂ (λ x, θ (k x))
-    | act_putᴹ s k => bind (putᵂ s) (λ _, θ k)
-    | act_reqᴹ p k => bind (reqᵂ p) (λ x, θ (k x))
-    | act_iterᴹ J B g i k => bind (iterᵂ (λ i, θ (g i)) i) (λ x, θ (k x))
-    | act_openᴹ fp k => bind (openᵂ fp) (λ x, θ (k x))
-    | act_readᴹ fd k => bind (readᵂ fd) (λ x, θ (k x))
-    | act_closeᴹ fd k => bind (closeᵂ fd) (λ x, θ k)
-    | act_histᴹ k => bind histᵂ (λ x, θ (k x))
-    end.
-
-  Instance θ_lax : LaxMorphism θ.
-  Proof.
-    constructor.
-    - intros A x.
-      reflexivity.
-    - intros A B c f.
-      induction c
-      as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih]
-      in B, f |- *.
-      all: intros P hist s₀ h.
-      + simpl. simpl in h. red in h. simpl in h.
-        eapply ismono. 2: exact h.
-        apply shift_post_nil.
-      + destruct h as [hp h]. exists hp.
-        apply ih. simpl. simpl in h. red.
-        eapply ismono. 2: exact h.
-        intros r hr. apply shift_post_nil in hr.
-        destruct r.
-        * eapply ismono. 2: exact hr.
-          apply shift_post_mono.
-          apply shift_post_nil_imp.
-        * apply shift_post_nil_imp. assumption.
-      + simpl. simpl in h.
-        destruct h as [iᵂ [helim hi]].
-        exists iᵂ. split. 1: assumption.
-        eapply ismono. 2: exact hi.
-        simpl. intros [tr s₁ x | st] hh. 2: assumption.
-        eapply ih. simpl. red.
-        eapply ismono. 2: eapply hh.
-        simpl. intros [].
-        * simpl. rewrite !rev_append_rev. rewrite !app_assoc.
-          rewrite rev_app_distr.
-          intro. eapply ismono. 2: eassumption.
-          intros. apply shift_post_app. assumption.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        apply ih. simpl. red.
-        eapply ismono. 2: exact h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          apply shift_post_mono. apply shift_post_nil_imp.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        apply ih. simpl. red.
-        eapply ismono. 2: exact h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          apply shift_post_mono. apply shift_post_nil_imp.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        intro fd.
-        apply ih. simpl. red.
-        eapply ismono. 2: apply h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          intros. apply shift_post_app. assumption.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        destruct h as [ho h].
-        split. 1: assumption.
-        intro fc.
-        apply ih. simpl. red.
-        eapply ismono. 2: apply h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          intros. apply shift_post_app. assumption.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        destruct h as [ho h]. split. 1: apply ho.
-        apply ih. simpl. red.
-        eapply ismono. 2: exact h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          intros. apply shift_post_app. assumption.
-        * simpl. auto.
-      + simpl. red. simpl.
-        simpl in h. red in h. simpl in h.
-        apply ih. simpl. red.
-        eapply ismono. 2: exact h.
-        intros [].
-        * simpl. intro. eapply ismono. 2: eassumption.
-          apply shift_post_mono. apply shift_post_nil_imp.
-        * simpl. auto.
-  Qed.
-
-  Instance θ_reqlax : ReqLaxMorphism _ θ.
-  Proof.
-    constructor.
-    intros p. intros post hist s₀ h.
-    simpl. red. simpl.
-    simpl in h. red in h.
-    destruct h as [hp h]. exists hp.
-    red. apply shift_post_nil_imp. assumption.
-  Qed.
-
-  Definition D A w : Type :=
-    PDM.D (θ := θ) A w.
-
-  Instance DijkstraMonad_D : DijkstraMonad D :=
-    PDM.DijkstraMonad_D WMono θ_lax.
-
-  (* Lift from PURE *)
-
   Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
     PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
+
+  (** OLD Specification monad *)
+  (* TODO Compose the two? We probably want a function from Wᴵ to W that is
+    monotonous and also such that f ret ≤ ret and same for bind and req.
+    Also do it before defining D if possible.
+  *)
+
+  (*
 
   (* Actions *)
 
