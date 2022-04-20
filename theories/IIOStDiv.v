@@ -1201,6 +1201,35 @@ Section IIOStDiv.
     eapply hw. assumption.
   Qed.
 
+  Definition toᴵ' [A] (w : W A) : Wᴵ' A :=
+    λ P hist s₀, val w (λ r, ∀ r', refine_run r r' → val P r') hist s₀.
+
+  Instance toᴵ_ismono [A] (w : W A) : Monotonousᴵ (toᴵ' w).
+  Proof.
+    intros P Q hPQ hist s₀ h.
+    red. red in h.
+    eapply ismono. 2: exact h.
+    simpl. intros r hP r' hr.
+    apply hPQ. apply hP. assumption.
+  Qed.
+
+  Definition toᴵ [A] (w : W A) : Wᴵ A :=
+    as_wpᴵ (toᴵ' w).
+
+  Lemma toᴵ_mono :
+    ∀ A (w w' : W A),
+      w ≤ᵂ w' →
+      toᴵ w ≤ᵂ toᴵ w'.
+  Proof.
+    intros A w w' hw.
+    intros P hist s₀ h.
+    simpl. red. simpl in h. red in h.
+    eapply hw. assumption.
+  Qed.
+
+  Definition iterᵂ [J A] (w : J → W (J + A)) (i : J) : W A :=
+    fromᴵ (iterᴵ (λ j, toᴵ (w j)) i).
+
   (** Dijstra monad in the style of DM4ever *)
 
   Definition Dᴵ A w : Type :=
@@ -1454,11 +1483,84 @@ Section IIOStDiv.
   Definition liftᴾ : ∀ A w, PURE A w → D A (liftᵂ w) :=
     PDM.liftᴾ (M := M) (W := W) WMono θ_lax θ_reqlax hlift.
 
-  (** OLD Specification monad *)
-  (* TODO Compose the two? We probably want a function from Wᴵ to W that is
-    monotonous and also such that f ret ≤ ret and same for bind and req.
-    Also do it before defining D if possible.
-  *)
+  (* Actions *)
+
+  Definition getᴰ : D state getᵂ.
+  Proof.
+    exists getᴹ.
+    intros P hist s₀ h.
+    simpl. simpl in h. red in h.
+    intros [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    assumption.
+  Defined.
+
+  Definition putᴰ (s : state) : D unit (putᵂ s).
+  Proof.
+    exists (putᴹ s).
+    intros P hist s₀ h.
+    simpl. simpl in h. red in h.
+    intros [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    assumption.
+  Defined.
+
+  Definition openᴰ fp : D file_descr (openᵂ fp).
+  Proof.
+    exists (openᴹ fp).
+    intros P hist s₀ h.
+    simpl. red. simpl in h. red in h.
+    intros fd [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    apply h.
+  Defined.
+
+  Definition readᴰ fd : D file_content (readᵂ fd).
+  Proof.
+    exists (readᴹ fd).
+    intros P hist s₀ h.
+    simpl. red. simpl in h. red in h.
+    destruct h as [? h].
+    split. 1: assumption.
+    intros fc [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    apply h.
+  Defined.
+
+  Definition closeᴰ fd : D unit (closeᵂ fd).
+  Proof.
+    exists (closeᴹ fd).
+    intros P hist s₀ h.
+    simpl. red. simpl in h. red in h.
+    destruct h as [? h].
+    split. 1: assumption.
+    intros [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    apply h.
+  Defined.
+
+  Definition histᴰ : D history histᵂ.
+  Proof.
+    exists histᴹ.
+    intros P hist s₀ h.
+    simpl. simpl in h. red in h.
+    intros [] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    apply h.
+  Defined.
+
+  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i :
+    D A (iterᵂ w i).
+  Proof.
+    exists (iterᴹ (λ j, val (f j)) i).
+    (* Should we use monotonicity of the different stuff?
+      Maybe from the proof of iterᴰᴵ? To take out as a lemma saying
+      iterᴵ is mono in its w arg.
+    *)
+    intros P hist s₀ h.
+    cbn - [iterᴵ]. red.
+    cbn - [iterᴵ] in h. red in h.
+  Abort.
 
   (*
 
