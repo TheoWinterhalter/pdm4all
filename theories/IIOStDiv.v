@@ -103,6 +103,10 @@ Section IIOStDiv.
     | inftrace s => inftrace (stream_prepend tr s)
     end.
 
+  (* TODO MOVE *)
+  Definition stream_skipn [A] (s : nat → A) (n : nat) : nat → A :=
+    λ m, s (n + m).
+
   Lemma stream_prepend_app :
     ∀ A t t' (s : nat → A),
       stream_prepend t (stream_prepend t' s) = stream_prepend (t ++ t') s.
@@ -114,6 +118,28 @@ Section IIOStDiv.
     - destruct n.
       + simpl. reflexivity.
       + simpl. apply ih.
+  Qed.
+
+  Lemma stream_prepend_skipn :
+    ∀ A (s : nat → A) n,
+      stream_prepend (strunc s n) (stream_skipn s n) = s.
+  Proof.
+    intros A s n. extensionality m.
+    induction n as [| n ih] in s, m |- *.
+    - simpl. reflexivity.
+    - destruct m.
+      + simpl. reflexivity.
+      + simpl. rewrite ih. reflexivity.
+  Qed.
+
+  Lemma strunc_length :
+    ∀ A (s : nat → A) n,
+      length (strunc s n) = n.
+  Proof.
+    intros A s n.
+    induction n as [| n ih] in s |- *.
+    - simpl. reflexivity.
+    - simpl. f_equal. apply ih.
   Qed.
 
   Lemma strace_prepend_nil :
@@ -1210,6 +1236,87 @@ Section IIOStDiv.
 
   Definition θ [A] (c : M A) : W A :=
     fromᴵ (θᴵ c).
+
+  (* TODO MOVE *)
+  Lemma length_to_trace :
+    ∀ t,
+      length (to_trace t) ≤ length t.
+  Proof.
+    intro t.
+    induction t as [| [e |] t ih].
+    - auto.
+    - simpl. lia.
+    - simpl. lia.
+  Qed.
+
+  (* TODO MOVE *)
+  Lemma sotrace_refine_prepend_inv :
+    ∀ st t s,
+      st ⊆ stream_prepend t s →
+      ∃ st', st = strace_prepend (to_trace t) st' ∧ st' ⊆ s.
+  Proof.
+    intros st t s h.
+    destruct st as [t' | t'].
+    - simpl in h. destruct h as [n h].
+      exists (fintrace (skipn (length (to_trace t)) t')).
+      split.
+      + simpl. specialize (h (n + length t)) as e.
+        forward e by lia. subst. f_equal.
+        rewrite strunc_stream_prepend_ge. 2: lia.
+        rewrite to_trace_app. f_equal.
+        rewrite skipn_app. rewrite skipn_all. simpl.
+        replace (length (to_trace t) - length (to_trace t)) with 0 by lia.
+        rewrite skipn_O. reflexivity.
+      + simpl. exists n.
+        intros m hm.
+        specialize (h (m + length t)). forward h by lia. subst.
+        rewrite strunc_stream_prepend_ge. 2: lia.
+        rewrite to_trace_app.
+        rewrite skipn_app. rewrite skipn_all. simpl.
+        replace (length (to_trace t) - length (to_trace t)) with 0 by lia.
+        rewrite skipn_O. f_equal. f_equal. lia.
+    - simpl in h.
+      specialize (h (length t)) as e.
+      destruct e as [m e]. apply (f_equal (λ l, length l)) in e as e'.
+      rewrite strunc_length in e'.
+      pose proof (length_to_trace (strunc (stream_prepend t s) m)) as ht.
+      rewrite strunc_length in ht. rewrite <- e' in ht.
+      rewrite strunc_stream_prepend_ge in e. 2: lia.
+      rewrite to_trace_app in e.
+      clear e'. apply (f_equal (firstn (length (to_trace t)))) in e as e'.
+      rewrite strunc_ge with (n := length (to_trace t)) in e'.
+      2: apply length_to_trace.
+      rewrite firstn_app in e'.
+      rewrite firstn_all2 in e'. 2:{ rewrite strunc_length. auto. }
+      rewrite strunc_length in e'.
+      replace (length (to_trace t) - length (to_trace t)) with 0 in e' by lia.
+      simpl in e'. rewrite app_nil_r in e'.
+      replace (length (to_trace t)) with (length (to_trace t) + 0) in e' by lia.
+      rewrite firstn_app_2 in e'. simpl in e'. rewrite app_nil_r in e'.
+      replace (length (to_trace t) + 0) with (length (to_trace t)) in e' by lia.
+      exists (inftrace (stream_skipn t' (length (to_trace t)))).
+      split.
+      + simpl. f_equal.
+        rewrite <- e'. rewrite strunc_length.
+        rewrite stream_prepend_skipn. reflexivity.
+      + simpl. intros n.
+        specialize (h (length (to_trace t) + n)). destruct h as [m' h].
+        destruct (dec_le (length t) m') as [hm' | hm'].
+        2:{
+          rewrite strunc_stream_prepend_le in h. 2: lia.
+          apply (f_equal (λ l, length l)) in h as eh.
+          rewrite strunc_length in eh.
+          pose proof (length_to_trace (firstn m' t)) as hl.
+          rewrite firstn_length_le in hl. 2: lia.
+          rewrite <- eh in hl.
+          pose proof (length_to_trace t).
+          give_up.
+        }
+        rewrite strunc_ge with (n := length (to_trace t)) in h. 2: lia.
+        rewrite e' in h.
+        rewrite strunc_stream_prepend_ge in h. 2: lia.
+        rewrite to_trace_app in h.
+  Abort.
 
   Instance θ_lax : LaxMorphism θ.
   Proof.
