@@ -1549,18 +1549,31 @@ Section IIOStDiv.
     apply h.
   Defined.
 
+  Lemma to_fromᴵ :
+    ∀ A (w : Wᴵ A),
+      w ≤ᵂ toᴵ (fromᴵ w).
+  Proof.
+  Admitted.
+
   Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i :
     D A (iterᵂ w i).
   Proof.
     exists (iterᴹ (λ j, val (f j)) i).
-    (* Should we use monotonicity of the different stuff?
-      Maybe from the proof of iterᴰᴵ? To take out as a lemma saying
-      iterᴵ is mono in its w arg.
-    *)
+    unfold iterᵂ. eapply fromᴵ_mono.
+    (* Can't use iterᴰᴵ directly? *)
     intros P hist s₀ h.
-    cbn - [iterᴵ]. red.
-    cbn - [iterᴵ] in h. red in h.
-  Abort.
+    simpl. simpl in h.
+    destruct h as [iᵂ [helim hi]].
+    exists iᵂ. split.
+    - intros j. etransitivity. 2: eapply helim.
+      apply iter_expand_mono.
+      etransitivity. 1: eapply to_fromᴵ.
+      eapply toᴵ_mono. eapply prf.
+    - eapply ismonoᴵ. 2: exact hi.
+      intros [].
+      + rewrite app_nil_r. auto.
+      + auto.
+  Defined.
 
   (*
 
