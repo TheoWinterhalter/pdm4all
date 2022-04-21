@@ -1553,14 +1553,51 @@ Section IIOStDiv.
     ∀ A (w : Wᴵ A),
       w ≤ᵂ toᴵ (fromᴵ w).
   Proof.
+    intros A w.
+    intros P hsit s₀ h.
+    simpl in h. red in h.
+    eapply ismonoᴵ. 2: exact h.
+    clear. simpl.
+    intros [t s x | s] h.
+    - eapply h with (r := cnv (to_trace t) s x).
+      all: simpl. all: intuition reflexivity.
+    - eapply h with (r := div _).
+      all: simpl.
+
+    (* Either I prove there exists an st that refines s or I try to
+    be less eager to apply fromᴵ_mono below.
+     *)
   Admitted.
 
   Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i :
     D A (iterᵂ w i).
   Proof.
     exists (iterᴹ (λ j, val (f j)) i).
+
+    (* unfold θ. unfold iterᵂ.
+    transitivity (fromᴵ (iterᴵ (λ j, θᴵ (val (f j))) i)).
+    - eapply fromᴵ_mono.
+      intros P hist s₀ h.
+      simpl. simpl in h.
+      destruct h as [iᵂ [helim hi]].
+      exists iᵂ. split.
+      + intros j. eapply helim.
+      + eapply ismonoᴵ. 2: exact hi.
+        intros [].
+        * rewrite app_nil_r. auto.
+        * auto.
+    - eapply fromᴵ_mono. (* Can factorise *)
+      eapply iterᴵ_coind.
+      clear. intros j.
+      etransitivity. 2: eapply iterᴵ_unfold.
+      apply iter_expand_mono.
+      pose proof (prf (f j)) as h. cbn beta in h.
+      apply toᴵ_mono in h.
+      etransitivity. 2: exact h.
+      unfold θ. *)
+      (* Same thing... *)
+
     unfold iterᵂ. eapply fromᴵ_mono.
-    (* Can't use iterᴰᴵ directly? *)
     intros P hist s₀ h.
     simpl. simpl in h.
     destruct h as [iᵂ [helim hi]].
