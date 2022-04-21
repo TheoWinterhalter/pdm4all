@@ -1557,12 +1557,12 @@ Section IIOStDiv.
     intros s.
   Admitted.
 
-  Lemma to_fromᴵ :
+  Lemma wle_to_fromᴵ :
     ∀ A (w : Wᴵ A),
       w ≤ᵂ toᴵ (fromᴵ w).
   Proof.
     intros A w.
-    intros P hsit s₀ h.
+    intros P hist s₀ h.
     simpl in h. red in h.
     eapply ismonoᴵ. 2: exact h.
     clear. simpl.
@@ -1585,7 +1585,7 @@ Section IIOStDiv.
     exists iᵂ. split.
     - intros j. etransitivity. 2: eapply helim.
       apply iter_expand_mono.
-      etransitivity. 1: eapply to_fromᴵ.
+      etransitivity. 1: eapply wle_to_fromᴵ.
       eapply toᴵ_mono. eapply prf.
     - eapply ismonoᴵ. 2: exact hi.
       intros [].
@@ -1593,27 +1593,7 @@ Section IIOStDiv.
       + auto.
   Defined.
 
-  (*
-
-  (* Actions *)
-
-  Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i : D A (iterᵂ w i).
-  Proof.
-    exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ h.
-    simpl. simpl in h.
-    destruct h as [iᵂ [helim hi]].
-    exists iᵂ. split.
-    - intros j. etransitivity. 2: eapply helim.
-      apply iter_expand_mono.
-      eapply prf.
-    - eapply ismono. 2: exact hi.
-      intros [].
-      + red. red. rewrite app_nil_r. auto.
-      + auto.
-  Defined.
-
-  (* pre and post combinator *)
+  (** pre and post combinator *)
 
   Definition prepostᵂ' [A] (pre : preᵂ) (post : history → postᵂ A) : W' A :=
     λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → P r).
@@ -1666,53 +1646,82 @@ Section IIOStDiv.
       end
     ).
 
+  (* TODO MOVE *)
+  (* Will only prove if we keep this strace representation *)
+  Lemma sotrace_refine_uniq :
+    ∀ s s₁ s₂,
+      s₁ ⊆ s →
+      s₂ ⊆ s →
+      s₁ = s₂.
+  Proof.
+  Admitted.
+
+  (* TODO MOVE *)
+  Lemma from_toᴵ_wle :
+    ∀ A (w : W A),
+      fromᴵ (toᴵ w) ≤ᵂ w.
+  Proof.
+    intros A w.
+    intros P hist s₀ h.
+    simpl. red.
+    eapply ismono. 2: exact h.
+    clear.
+    intros [t s x | s] h.
+    - intros [] hr'. 2: contradiction.
+      intros [] hr. 2: contradiction.
+      simpl in hr, hr'. intuition subst.
+      assumption.
+    - intros [] hr'. 1: contradiction.
+      intros [] hr. 1: contradiction.
+      simpl in hr, hr'.
+      eapply sotrace_refine_uniq in hr. 2: exact hr'.
+      subst. assumption.
+  Qed.
+
+  (* TODO MOVE *)
+  Lemma fromᴵ_wle :
+    ∀ A w (w' : W A),
+      w ≤ᵂ toᴵ w' →
+      fromᴵ w ≤ᵂ w'.
+  Proof.
+    intros A w w' h.
+    etransitivity. 2: eapply from_toᴵ_wle.
+    eapply fromᴵ_mono. assumption.
+  Qed.
+
   Lemma always_continues :
     ∀ J A pre inv i,
       @iterᵂ J A (always_continuesᵂ pre inv) i ≤ᵂ inv_loopᵂ pre inv i.
   Proof.
     intros J A pre inv i.
-    intros post hist s₀ h.
-    eexists. split. 2: eassumption.
-    intros j. intros post' hist' s₀' h'.
-    simpl in h'. simpl.
-    destruct h' as [hpre hpost].
-    split.
-    - assumption.
-    - intros [tr s [k | x] | st] hk. 2,3: contradiction.
-      destruct hk as [hk htr].
-      split.
-      + assumption.
-      + intros [| st]. 1: contradiction.
-        intros [trs [htrs hst]]. simpl.
-        eapply hpost.
-        exists (stream_prepend [tr] trs). split.
-        * intros [| n]. all: simpl. all: eauto.
-        * apply trace_refine_prepend. assumption.
-  Qed.
-
-  (* Sadly, the current iterᵂ can prove any spec for a loop. *)
-  Lemma always_wrong :
-    ∀ J A (i : J) w,
-      @iterᵂ J A (λ j, ret (inl j)) i ≤ᵂ w.
-  Proof.
-    intros J A i w.
-    eapply iterᵂ_coind with (w' := λ j, _).
-    intros j. intros post hist s₀ h.
+    unfold iterᵂ. eapply fromᴵ_wle.
+    eapply iterᴵ_coind with (w' := λ j, toᴵ (inv_loopᵂ pre inv j)).
+    clear. intros j. intros post hist s₀ h.
     simpl. red.
-    rewrite rev_append_rev. simpl.
-    eapply ismono. 2: exact h.
-    apply shift_post_nil_imp.
+    simpl in h. red in h.
+    destruct h as [hpre hpost].
+    split. 1: assumption.
+    intros [t s [i | x] | s]. 2,3: contradiction.
+    intros [hi hinv].
+    intros [tr s' ? |] hr. 2: contradiction.
+    simpl in hr. intuition subst.
+    simpl. red.
+    split. 1: assumption.
+    intros [| st]. 1: contradiction.
+    intros [trs [htrs hs]].
+    intros [] hr'. 1: contradiction.
+    simpl in hr'.
+    eapply hpost with (r := div (strace_prepend (to_trace tr) st)).
+    - exists (stream_prepend [to_trace tr] trs). split.
+      + intros [| n]. all: simpl. all: eauto.
+      + apply trace_refine_prepend. assumption.
+    - simpl. eapply sotrace_refine_prepend.
+      destruct st.
+      + simpl. destruct hr' as [n h].
+        exists (S n). intros [| m] hm. 1: lia.
+        simpl. apply h. lia.
+      + simpl. intros n. specialize (hr' n). destruct hr' as [m e].
+        exists (S m). apply e.
   Qed.
-
-  (* Test with another version of iterᵂ with step counting *)
-
-  (* Specification of iter using an impredicative encoding *)
-  Definition step_iter_expand [J A] (w : J → W (J + A)) (i : J) (k : J → W (nat * A)) : W (nat * A) :=
-    bind (w i) (λ x,
-      match x with
-      | inl j => bind (k j) (λ '(n, y), ret (S n, y))
-      | inr y => ret (0, y)
-      end
-    ). *)
 
 End IIOStDiv.
