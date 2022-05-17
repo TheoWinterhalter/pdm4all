@@ -11,8 +11,10 @@ Just build with `make`.
 
 ## Motivation: Examples of partiality in F*
 
-These should type-check from the existence of a lift from PURE.
-They explain the need for deep asserts in the effect representation.
+These examples should type-check in F* because of the existence of a lift from
+PURE.
+They explain the need for deep assertions (`require`) in the effect
+representation.
 
 State:
 ```fstar
@@ -42,7 +44,7 @@ transformers…
 ### Special cases
 
 - `GuardedPDM.v` proposes a construction of partial DM from a monad without
-asserts.
+`require`.
 - `DM4Free.v` makes the Dijkstra monads for free work fit in the current
 framework.
 - `FreePDM.v`: get a partial Dijkstra monad from a free monad signature and
