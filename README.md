@@ -59,6 +59,7 @@ a specification monad.
 - `ND.v`: Non-determinism.
 - `Div.v`: Non-termination using an evaluation relation (uses classical logic, including functional choice). ⚠️ The spec of iter is not fully worked out. ⚠️
 - `IIOStDiv.v`: Non-termination with instrumented I/O and state using a more axiomatic semantics.
+- `IIOStDivAlt.v`: Similar but more direct, keeping the notion of silent steps in the specifications.
 
 ## F* examples
 
