@@ -34,11 +34,11 @@ Section Guarded.
 
   Arguments θ [_].
 
-  (* We require a LiftPred before we get to partiality *)
+  (* We require a LiftPred, which is used to define bind for Mᴳ below *)
 
   Context (leafpred : LeafPred M) (hleaf : Leafine M leafpred).
 
-  (* We first build a new computation monad with req *)
+  (* Using this we build Mᴳ, a new computation monad with req *)
 
   Definition Mᴳ A := G (M A).
 
@@ -74,7 +74,7 @@ Section Guarded.
   Definition θᴳ : observation Mᴳ W :=
     λ A c, bind (req c.π1) (λ h, θ (c.π2 h)).
 
-  (* We now extend the effect observation *)
+  (* We try (and for now fail) to extend the lax monad morphism proof *)
   (* Instance hreqlax : ReqLaxMorphism Word θᴳ.
   Proof.
     constructor. 1: constructor.
@@ -108,6 +108,7 @@ Section Guarded.
 
   (* Lift from PURE *)
 
+  (* Same here, we try (and for now fail) to define a lift from PURE *)
   Instance hlift : PureSpec W Word liftᵂ.
   Proof.
     constructor.
@@ -115,7 +116,7 @@ Section Guarded.
     simpl.
   Abort.
 
-  (* Same here *)
+  (* So we just assume it: *)
   Context (hlift : PureSpec W Word liftᵂ).
 
   Definition liftᴾ :=
