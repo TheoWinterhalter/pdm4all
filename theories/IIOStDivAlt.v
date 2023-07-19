@@ -1049,4 +1049,64 @@ Section IIOStDiv.
     | act_histᴹ k => x <- trigger i_hist ;; toitree (k x)
     end.
 
+  (* BEGIN Copy from dm4ever *)
+
+  Variant EvAns (E : Type -> Type) : Type -> Type :=
+  | evans : forall {A : Type} (ev : E A) (ans : A), EvAns E unit
+  (*if you can prove there is no answers, don't need to proved one*)
+  | evempty : forall {A : Type} (Hempty : A -> void) (ev : E A), EvAns E void
+  .
+
+  Arguments evans {E}.
+  Arguments evempty {E}.
+
+  Definition itrace (E : Type -> Type) (R : Type) := itree (EvAns E) R.
+
+  From ITree Require Import Eq.Rutt.
+
+  Variant REvRef (E : Type -> Type) : forall (A B : Type), EvAns E A -> E B -> Prop :=
+  | rer {A : Type} (e : E A) (a : A) : REvRef E unit A (evans A e a) e
+  | ree {A : Type} (e : E A) (Hempty : A -> void) : REvRef E void A (evempty A Hempty e) e
+  .
+
+  (*shouldn't need an empty case*)
+  Variant RAnsRef (E : Type -> Type) : forall (A B : Type), EvAns E A -> A -> E B -> B -> Prop :=
+  | rar {A : Type} (e : E A) (a : A) : RAnsRef E unit A (evans A e a) tt e a.
+
+  Definition itrace_refine {E R}  (t : itree E R) (b : itrace E R)  :=
+    rutt (REvRef E) (RAnsRef E) eq b t.
+
+  (*one append for traces and streams, get associativity for free from bind_bind*)
+  Definition append {E R} (s : itrace E unit) (b : itrace E R) :=
+    ITree.bind s (fun _ => b).
+
+  Notation "s ++ b" := (append s b).
+
+  Definition ev_list (E : Type -> Type) := list (EvAns E unit).
+
+  Definition ev_stream (E : Type -> Type) := itrace E unit.
+
+  Fixpoint ev_list_to_stream {E : Type -> Type} (l : ev_list E) : ev_stream E :=
+    match l with
+    | nil => Ret tt
+    | cons e t => Vis e (fun _ => ev_list_to_stream t) end.
+
+  Notation "↑ log" := (ev_list_to_stream log) (at level 30).
+
+  From Coq Require Import Morphisms.
+
+  Notation iresp_eutt P := (Proper (eutt eq ==> iff) P).
+
+  Definition TraceSpecInput (A : Type) :=
+    { p : itrace ieff A → Prop | iresp_eutt p }.
+
+  (* Forgetting about monotonicity for now *)
+  Definition TraceSpec (A : Type) :=
+      ev_list ieff → TraceSpecInput A → Prop.
+
+  Definition obs [A] (t : itree ieff A) : TraceSpec A :=
+    λ log p, ∀ b, itrace_refine t b → proj1_sig p (↑log ++ b).
+
+  (* END copy *)
+
 End IIOStDiv.
