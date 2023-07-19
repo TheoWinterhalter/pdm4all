@@ -18,6 +18,8 @@ From PDM Require PDM.
 From Equations Require Import Equations.
 Require Equations.Prop.DepElim.
 
+From ITree Require ITree ITreeFacts.
+
 Import ListNotations.
 
 Set Default Goal Selector "!".
@@ -407,7 +409,7 @@ Section IIOStDiv.
     | _, _ => False
     end.
 
-  Notation "u ≈ v" := (eutt u v) (at level 80).
+  Notation "u ≈ v" := (eutt u v) (at level 70).
 
   Lemma eutt_refl :
     ∀ A (r : run A),
@@ -1021,5 +1023,30 @@ Section IIOStDiv.
     - intros [| n]. all: simpl. all: eauto.
     - apply always_continues_aux. assumption.
   Qed.
+
+  (* Itree interpretation *)
+  Import ITree ITreeFacts ITreeNotations.
+
+  Variant ieff : Type → Type :=
+  | i_req (p : Prop) : ieff p
+  | i_get : ieff state
+  | i_put (s : state) : ieff unit
+  | i_open (p : path) : ieff file_descr
+  | i_read (f : file_descr) : ieff file_content
+  | i_close (f : file_descr) : ieff unit
+  | i_hist : ieff history.
+
+  Fixpoint toitree [A] (c : M A) : itree ieff A :=
+    match c with
+    | retᴹ x => Ret x
+    | act_reqᴹ p k => x <- trigger (i_req p) ;; toitree (k x)
+    | act_iterᴹ J B g i k => x <- iter (1 := Iter_Kleisli) (λ j, toitree (g j)) i ;; toitree (k x)
+    | act_getᴹ k => x <- trigger i_get ;; toitree (k x)
+    | act_putᴹ s k => trigger (i_put s) ;; toitree k
+    | act_openᴹ fp k => x <- trigger (i_open fp) ;; toitree (k x)
+    | act_readᴹ fd k => x <- trigger (i_read fd) ;; toitree (k x)
+    | act_closeᴹ fd k => trigger (i_close fd) ;; toitree k
+    | act_histᴹ k => x <- trigger i_hist ;; toitree (k x)
+    end.
 
 End IIOStDiv.

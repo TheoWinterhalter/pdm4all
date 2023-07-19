@@ -44,7 +44,7 @@ Definition coe {A B} (e : A = B) : A → B :=
 Definition heq {A B : Type} (x : A) (y : B) :=
   ∑ (e : A = B), coe e x = y.
 
-Notation "x ≅ y" := (heq x y) (at level 80).
+(* Notation "x ≅ y" := (heq x y) (at level 80). *)
 
 Lemma sig_ext :
   ∀ A (P : A → Prop) (u v : { x : A | P x }),
