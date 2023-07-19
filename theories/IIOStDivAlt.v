@@ -1109,4 +1109,72 @@ Section IIOStDiv.
 
   (* END copy *)
 
+  Definition event_to_evans (e : event) : EvAns ieff unit :=
+    match e with
+    | EOpen fp fd => evans _ (i_open fp) fd
+    | ERead fd fc => evans _ (i_read fd) fc
+    | EClose fd => evans _ (i_close fd) tt
+    end.
+
+  Fixpoint ifintrace [A] (l : trace) (x : A) : itrace ieff A :=
+    match l with
+    | [] => Ret x
+    | e :: l => Vis (event_to_evans e) (λ _, ifintrace l x)
+    end.
+
+  Definition sotrace_tl (s : sotrace) : sotrace :=
+    λ n, s (S n).
+
+  CoFixpoint sotrace_to_itrace [A] (s : sotrace) : itrace ieff A :=
+    match s 0 with
+    | Some e => Vis (event_to_evans e) (λ _, sotrace_to_itrace (sotrace_tl s))
+    | None => Tau (sotrace_to_itrace (sotrace_tl s))
+    end.
+
+  Axiom todo : ∀ A, A.
+
+  Definition w_ispec [A] (w : W' A) : TraceSpec A.
+  Proof.
+    intros log [p hp].
+    eapply w.
+    - unshelve econstructor.
+      + intro r.
+        eapply p.
+        destruct r as [t s x | s].
+        * eapply to_trace in t.
+          exact (ifintrace t x).
+        * exact (sotrace_to_itrace s).
+      + intros r r' hr h.
+        destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
+        * simpl in *. destruct hr as [e ?]. rewrite <- e.
+          intuition subst. assumption.
+        * simpl in *.
+          eapply hp. 2: eassumption.
+          apply todo.
+    - apply todo.
+    - apply todo.
+  Defined.
+
+  Lemma equiv_specs :
+    ∀ A (c : M A) log p,
+      w_ispec (proj1_sig (θ c)) log p ↔ obs (toitree c) log p.
+  Proof.
+    intros A c log [post hpost].
+    induction c
+    as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih].
+    - simpl. unfold obs. simpl. split.
+      + intros h b hb.
+        eapply hpost. 2: eassumption. (* Missing log in w_ispec *)
+        admit.
+      + admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+  Admitted.
+
 End IIOStDiv.
