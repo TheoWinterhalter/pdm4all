@@ -1044,6 +1044,23 @@ Section IODiv.
 
   Axiom todo : ∀ A, A.
 
+  Definition evans_to_event (e : EvAns ieff unit) : option event :=
+    match e with
+    | evans _ (i_open fp) fd => Some (EOpen fp fd)
+    | evans _ (i_read fd) fc => Some (ERead fd fc)
+    | evans _ (i_close fd) tt => Some (EClose fd)
+    | _ => None
+    end.
+
+  Fixpoint ev_list_to_otrace (l : ev_list ieff) : otrace :=
+    match l with
+    | [] => []
+    | e :: l => evans_to_event e :: ev_list_to_otrace l
+    end.
+
+  Definition ev_list_to_hist (l : ev_list ieff) : history :=
+    to_trace (ev_list_to_otrace l).
+
   Definition w_ispec [A] (w : W' A) : TraceSpec A.
   Proof.
     intros log [p hp].
@@ -1061,7 +1078,7 @@ Section IODiv.
         * simpl in *.
           eapply hp. 2: eassumption.
           apply todo.
-    - apply todo.
+    - exact (ev_list_to_hist log).
   Defined.
 
   Lemma equiv_specs :
@@ -1071,9 +1088,10 @@ Section IODiv.
     intros A c log [post hpost].
     induction c
     as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
-    - simpl. unfold obs. simpl. split.
+    - (* w_ispec is not using history the same way as TraceSpec *)
+      simpl. unfold obs. simpl. split.
       + intros h b hb.
-        eapply hpost. 2: eassumption. (* Missing log in w_ispec *)
+        eapply hpost. 2: eassumption.
         admit.
       + admit.
     - admit.
