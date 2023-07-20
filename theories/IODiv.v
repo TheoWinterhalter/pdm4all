@@ -22,9 +22,9 @@ Unset Universe Minimization ToSet.
 
 Set Equations Transparent.
 
-Section IIOStDiv.
+Section IODiv.
 
-  Context (state path file_descr file_content : Type).
+  Context (path file_descr file_content : Type).
 
   (** I/O events *)
 
@@ -309,34 +309,25 @@ Section IIOStDiv.
   | retᴹ (x : A)
   | act_reqᴹ (p : Prop) (k : p → M A)
   | act_iterᴹ (J B : Type) (f : J → M (J + B)%type) (i : J) (k : B → M A)
-  | act_getᴹ (k : state → M A)
-  | act_putᴹ (s : state) (k : M A)
   | act_openᴹ (p : path) (k : file_descr → M A)
   | act_readᴹ (f : file_descr) (k : file_content → M A)
-  | act_closeᴹ (f : file_descr) (k : M A)
-  | act_histᴹ (k : history → M A).
+  | act_closeᴹ (f : file_descr) (k : M A).
 
   Arguments retᴹ [_].
   Arguments act_reqᴹ [_].
   Arguments act_iterᴹ [_].
-  Arguments act_getᴹ [_].
-  Arguments act_putᴹ [_].
   Arguments act_openᴹ [_].
   Arguments act_readᴹ [_].
   Arguments act_closeᴹ [_].
-  Arguments act_histᴹ [_].
 
   Fixpoint bindᴹ [A B] (c : M A) (f : A → M B) : M B :=
     match c with
     | retᴹ x => f x
     | act_reqᴹ p k => act_reqᴹ p (λ h, bindᴹ (k h) f)
     | act_iterᴹ J B g i k => act_iterᴹ J B g i (λ h, bindᴹ (k h) f)
-    | act_getᴹ k => act_getᴹ (λ s, bindᴹ (k s) f)
-    | act_putᴹ s k => act_putᴹ s (bindᴹ k f)
     | act_openᴹ fp k => act_openᴹ fp (λ x, bindᴹ (k x) f)
     | act_readᴹ fd k => act_readᴹ fd (λ x, bindᴹ (k x) f)
     | act_closeᴹ fd k => act_closeᴹ fd (bindᴹ k f)
-    | act_histᴹ k => act_histᴹ (λ x, bindᴹ (k x) f)
     end.
 
   #[export] Instance Monad_M : Monad M := {|
@@ -351,12 +342,6 @@ Section IIOStDiv.
   Definition iterᴹ [J A] (f : J → M (J + A)) (i : J) : M A :=
     act_iterᴹ J A f i (λ x, ret x).
 
-  Definition getᴹ : M state :=
-    act_getᴹ (λ x, ret x).
-
-  Definition putᴹ (s : state) : M unit :=
-    act_putᴹ s (ret tt).
-
   Definition openᴹ fp :=
     act_openᴹ fp (λ x, ret x).
 
@@ -365,9 +350,6 @@ Section IIOStDiv.
 
   Definition closeᴹ fd :=
     act_closeᴹ fd (ret tt).
-
-  Definition histᴹ :=
-    act_histᴹ (λ x, ret x).
 
   #[export] Instance M_laws : MonadLaws M.
   Proof.
@@ -386,7 +368,7 @@ Section IIOStDiv.
 
   (* Similar to itrace *)
   Inductive run A :=
-  | cnv (t : otrace) (s : state) (x : A)
+  | cnv (t : otrace) (x : A)
   | div (s : sotrace).
 
   Arguments cnv [_].
@@ -395,8 +377,8 @@ Section IIOStDiv.
   (* Equal up to tau *)
   Definition eutt [A] (r r' : run A) : Prop :=
     match r, r' with
-    | cnv t s x, cnv t' s' x' =>
-      to_trace t = to_trace t' ∧ s = s' ∧ x = x'
+    | cnv t x, cnv t' x' =>
+      to_trace t = to_trace t' ∧ x = x'
     | div s, div s' =>
       uptotau s s'
     | _, _ => False
@@ -418,7 +400,7 @@ Section IIOStDiv.
     ∀ r r', r ≈ r' → p r → p r'.
 
   Definition preᵂ :=
-    history → state → Prop.
+    history → Prop.
 
   Definition postᵂ A :=
     { post : run A → Prop | resp_eutt post }.
@@ -429,7 +411,7 @@ Section IIOStDiv.
     ismono :
       ∀ (P Q : postᵂ A),
         (∀ x, val P x → val Q x) →
-        ∀ hist s₀, w P hist s₀ → w Q hist s₀.
+        ∀ hist, w P hist → w Q hist.
 
   Definition W A := { w : W' A | Monotonous w }.
 
@@ -442,11 +424,11 @@ Section IIOStDiv.
   Qed.
 
   Definition retᵂ' [A] (x : A) : W' A :=
-    λ P hist s₀, val P (cnv [] s₀ x).
+    λ P hist, val P (cnv [] x).
 
   #[export] Instance retᵂ_ismono [A] (x : A) : Monotonous (retᵂ' x).
   Proof.
-    intros P Q hPQ hist s₀ h.
+    intros P Q hPQ hist h.
     apply hPQ. apply h.
   Qed.
 
@@ -457,14 +439,14 @@ Section IIOStDiv.
     shift_post tr P :=
       ⟨ λ r,
           match r with
-          | cnv tr' s x => val P (cnv (tr ++ tr') s x)
+          | cnv tr' x => val P (cnv (tr ++ tr') x)
           | div st => val P (div (stream_prepend tr st))
           end
       ⟩.
   Proof.
     intros r r' h hp.
     destruct P as [P hP].
-    destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
+    destruct r as [t x | s], r' as [t' x' | s']. 2,3: contradiction.
     - simpl in *. eapply hP. 2: eassumption.
       simpl. intuition subst.
       rewrite !to_trace_app. f_equal. assumption.
@@ -482,18 +464,18 @@ Section IIOStDiv.
 
   #[tactic=idtac] Equations? bindᵂ' [A B] (w : W A) (wf : A → W B) : W' B :=
     bindᵂ' w wf :=
-      λ P hist s₀,
+      λ P hist,
         val w ⟨ λ r,
           match r with
-          | cnv tr s₁ x => val (wf x) (shift_post tr P) (rev_append (to_trace tr) hist) s₁
+          | cnv tr x => val (wf x) (shift_post tr P) (rev_append (to_trace tr) hist)
           | div s => val P (div s)
           end
-        ⟩ hist s₀.
+        ⟩ hist.
   Proof.
     intros r r' h hp.
     destruct P as [P hP].
-    destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
-    - simpl in h. destruct h as [et [es ex]]. subst.
+    destruct r as [t x | s], r' as [t' x' | s']. 2,3: contradiction.
+    - simpl in h. destruct h as [et ex]. subst.
       rewrite <- et. eapply ismono. 2: eassumption.
       intros [].
       + simpl. apply hP. simpl.
@@ -511,9 +493,9 @@ Section IIOStDiv.
     Monotonous (bindᵂ' w wf).
   Proof.
     destruct w as [w mw].
-    intros P Q hPQ hist s₀ h.
+    intros P Q hPQ hist h.
     eapply mw. 2: exact h.
-    simpl. intros [tr s₁ x| st] hf.
+    simpl. intros [tr x| st] hf.
     - destruct (wf x) as [wf' mwf].
       eapply mwf. 2: exact hf.
       intros [] hr.
@@ -526,11 +508,11 @@ Section IIOStDiv.
     as_wp (bindᵂ' w wf).
 
   Definition reqᵂ' (p : Prop) : W' p :=
-    λ P hist s₀, ∃ (h : p), val P (cnv [] s₀ h).
+    λ P hist, ∃ (h : p), val P (cnv [] h).
 
   #[export] Instance reqᵂ_ismono : ∀ p, Monotonous (reqᵂ' p).
   Proof.
-    intros p. intros P Q hPQ hist s₀ h.
+    intros p. intros P Q hPQ hist h.
     destruct h as [hp h].
     exists hp. apply hPQ. assumption.
   Qed.
@@ -539,48 +521,23 @@ Section IIOStDiv.
     as_wp (reqᵂ' p).
 
   Definition tauᵂ' : W' unit :=
-    λ P hist s₀, val P (cnv [ None ] s₀ tt).
+    λ P hist, val P (cnv [ None ] tt).
 
   #[export] Instance tauᵂ_ismono : Monotonous tauᵂ'.
   Proof.
-    intros P Q hPQ hist s₀ h.
+    intros P Q hPQ hist h.
     apply hPQ. assumption.
   Qed.
 
   Definition tauᵂ : W unit :=
     as_wp tauᵂ'.
 
-  Definition getᵂ' : W' state :=
-    λ P hist s, val P (cnv [] s s).
-
-  Instance getᵂ_ismono : Monotonous getᵂ'.
-  Proof.
-    intros P Q hPQ hist s₀ h.
-    red. red in h.
-    apply hPQ. assumption.
-  Qed.
-
-  Definition getᵂ : W state :=
-    as_wp getᵂ'.
-
-  Definition putᵂ' (s : state) : W' unit :=
-    λ P hist s₀, val P (cnv [] s tt).
-
-  Instance putᵂ_ismono : ∀ s, Monotonous (putᵂ' s).
-  Proof.
-    intros s. intros P Q hPQ hist s₀ h.
-    apply hPQ. assumption.
-  Qed.
-
-  Definition putᵂ (s : state) : W unit :=
-    as_wp (putᵂ' s).
-
   Definition openᵂ' (fp : path) : W' file_descr :=
-    λ P hist s₀, ∀ fd, val P (cnv [ Some (EOpen fp fd) ] s₀ fd).
+    λ P hist, ∀ fd, val P (cnv [ Some (EOpen fp fd) ] fd).
 
   Instance openᵂ_ismono : ∀ fp, Monotonous (openᵂ' fp).
   Proof.
-    intros fp. intros P Q hPQ hist s₀ h.
+    intros fp. intros P Q hPQ hist h.
     intro fd.
     apply hPQ. apply h.
   Qed.
@@ -589,11 +546,11 @@ Section IIOStDiv.
     as_wp (openᵂ' fp).
 
   Definition readᵂ' (fd : file_descr) : W' file_content :=
-    λ P hist s₀, is_open fd hist ∧ ∀ fc, val P (cnv [ Some (ERead fd fc) ] s₀ fc).
+    λ P hist, is_open fd hist ∧ ∀ fc, val P (cnv [ Some (ERead fd fc) ] fc).
 
   Instance readᵂ_ismono : ∀ fd, Monotonous (readᵂ' fd).
   Proof.
-    intros fd. intros P Q hPQ hist s₀ h.
+    intros fd. intros P Q hPQ hist h.
     destruct h as [ho h].
     split.
     - assumption.
@@ -604,11 +561,11 @@ Section IIOStDiv.
     as_wp (readᵂ' fd).
 
   Definition closeᵂ' (fd : file_descr) : W' unit :=
-    λ P hist s₀, is_open fd hist ∧ val P (cnv [ Some (EClose fd) ] s₀ tt).
+    λ P hist, is_open fd hist ∧ val P (cnv [ Some (EClose fd) ] tt).
 
   Instance closeᵂ_ismono : ∀ fd, Monotonous (closeᵂ' fd).
   Proof.
-    intros fd. intros P Q hPQ hist s₀ h.
+    intros fd. intros P Q hPQ hist h.
     destruct h as [ho h].
     split.
     - assumption.
@@ -617,18 +574,6 @@ Section IIOStDiv.
 
   Definition closeᵂ (fd : file_descr) : W unit :=
     as_wp (closeᵂ' fd).
-
-  Definition histᵂ' : W' history :=
-    λ P hist s₀, val P (cnv [] s₀ hist).
-
-  Instance histᵂ_ismono : Monotonous histᵂ'.
-  Proof.
-    intros P Q hPQ hist s₀ h.
-    apply hPQ. assumption.
-  Qed.
-
-  Definition histᵂ : W history :=
-    as_wp histᵂ'.
 
   #[export] Instance Monad_W : Monad W := {|
     ret := retᵂ ;
@@ -640,29 +585,29 @@ Section IIOStDiv.
   |}.
 
   Definition wle [A] (w₀ w₁ : W A) : Prop :=
-    ∀ P hist s₀, val w₁ P hist s₀ → val w₀ P hist s₀.
+    ∀ P hist, val w₁ P hist → val w₀ P hist.
 
   #[export] Instance Order_W : Order W.
   Proof.
     exists wle.
-    intros A x y z h₁ h₂. intros P hist s₀ h.
+    intros A x y z h₁ h₂. intros P hist h.
     apply h₁. apply h₂.
     assumption.
   Defined.
 
   #[export] Instance Reflexive_wle [A] : Reflexive (wle (A := A)).
   Proof.
-    intro w. intros p hist s₀ h. assumption.
+    intro w. intros p hist h. assumption.
   Qed.
 
   #[export] Instance MonoSpec_W : MonoSpec W.
   Proof.
     constructor.
     intros A B w w' wf wf' hw hwf.
-    intros P hist s₀ h.
+    intros P hist h.
     hnf. hnf in h.
     apply hw. destruct w' as [w' mw']. eapply mw'. 2: exact h.
-    simpl. intros [tr s₁ x| st] hf.
+    simpl. intros [tr x| st] hf.
     - apply hwf. assumption.
     - assumption.
   Qed.
@@ -690,15 +635,15 @@ Section IIOStDiv.
 
   (** Greatest fixpoint of [iter_expand w j (iterᵂ' w) ≤ᵂ iterᵂ' w j] *)
   Definition iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    λ post hist s₀,
+    λ post hist,
       ∃ (P : J → W A),
         (∀ j, iter_expand w j P ≤ᵂ P j) ∧
-        val (P i) post hist s₀.
+        val (P i) post hist.
 
   #[export] Instance iterᵂ_ismono [J A] (w : J → W (J + A)) (i : J) :
     Monotonous (iterᵂ' w i).
   Proof.
-    intros P Q hPQ hist s₀ h.
+    intros P Q hPQ hist h.
     destruct h as [iᵂ [helim hi]].
     exists iᵂ. split.
     - apply helim.
@@ -714,11 +659,11 @@ Section IIOStDiv.
     ∀ J A (w : J → W (J + A)) (i : J),
       iter_expand w i (iterᵂ w) ≤ᵂ iterᵂ w i.
   Proof.
-    intros J A w i. intros post hist s₀ h.
+    intros J A w i. intros post hist h.
     destruct h as [iᵂ [helim hi]].
     eapply helim in hi as h. simpl in h. red in h.
     simpl. red. eapply ismono. 2: exact h.
-    simpl. intros [tr s₁ [j | x] | st] hh.
+    simpl. intros [tr [j | x] | st] hh.
     - simpl. red.
       exists iᵂ. split. all: auto.
     - assumption.
@@ -731,7 +676,7 @@ Section IIOStDiv.
       iterᵂ w i ≤ᵂ w' i.
   Proof.
     intros J A w i w' h.
-    intros post hist s₀ h'.
+    intros post hist h'.
     exists w'. split. all: assumption.
   Qed.
 
@@ -751,8 +696,8 @@ Section IIOStDiv.
 
   Definition liftᵂ [A] (w : pure_wp A) : W A.
   Proof.
-    exists (λ P hist s₀, val w (λ x, val P (cnv [] s₀ x))).
-    intros P Q hPQ hist s₀ h.
+    exists (λ P hist, val w (λ x, val P (cnv [] x))).
+    intros P Q hPQ hist h.
     destruct w as [w mw].
     eapply mw. 2: exact h.
     simpl. intros x. apply hPQ.
@@ -762,7 +707,7 @@ Section IIOStDiv.
   Proof.
     constructor.
     intros A w f.
-    intros P hist s₀ h.
+    intros P hist h.
     assert (hpre : val w (λ _, True)).
     { unfold liftᵂ in h.
       destruct w as [w hw].
@@ -779,14 +724,11 @@ Section IIOStDiv.
   Fixpoint θ [A] (c : M A) : W A :=
     match c with
     | retᴹ x => ret x
-    | act_getᴹ k => bind getᵂ (λ x, θ (k x))
-    | act_putᴹ s k => bind (putᵂ s) (λ _, θ k)
     | act_reqᴹ p k => bind (reqᵂ p) (λ x, θ (k x))
     | act_iterᴹ J B g i k => bind (iterᵂ (λ i, θ (g i)) i) (λ x, θ (k x))
     | act_openᴹ fp k => bind (openᵂ fp) (λ x, θ (k x))
     | act_readᴹ fd k => bind (readᵂ fd) (λ x, θ (k x))
     | act_closeᴹ fd k => bind (closeᵂ fd) (λ x, θ k)
-    | act_histᴹ k => bind histᵂ (λ x, θ (k x))
     end.
 
   Lemma bindᵂ_assoc :
@@ -794,7 +736,7 @@ Section IIOStDiv.
       bind w (λ x, bind (wf x) wg) ≤ᵂ bind (bind w wf) wg.
   Proof.
     intros A B C w wf wg.
-    intros P hist s₀ h.
+    intros P hist h.
     simpl. red.
     simpl in h. red in h.
     eapply ismono. 2: exact h.
@@ -820,16 +762,16 @@ Section IIOStDiv.
       reflexivity.
     - intros A B c f.
       induction c
-      as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih]
+      as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih]
       in B, f |- *.
-      2-9: cbn - [structures.wle bind].
-      2-9: etransitivity ; [| eapply bindᵂ_assoc].
-      2-9: cbn - [structures.wle].
-      2-9: change bindᵂ with bind.
-      2-9: eapply bind_mono ; [reflexivity |].
-      2-9: intro.
-      2-9: apply ih.
-      intros P hist s₀ h.
+      2-6: cbn - [structures.wle bind].
+      2-6: etransitivity ; [| eapply bindᵂ_assoc].
+      2-6: cbn - [structures.wle].
+      2-6: change bindᵂ with bind.
+      2-6: eapply bind_mono ; [reflexivity |].
+      2-6: intro.
+      2-6: apply ih.
+      intros P hist h.
       simpl. simpl in h.
       eapply ismono. 2: exact h.
       apply shift_post_nil.
@@ -838,7 +780,7 @@ Section IIOStDiv.
   Instance θ_reqlax : ReqLaxMorphism _ θ.
   Proof.
     constructor.
-    intros p. intros post hist s₀ h.
+    intros p. intros post hist h.
     simpl. red. simpl.
     simpl in h. red in h.
     destruct h as [hp h]. exists hp. assumption.
@@ -862,7 +804,7 @@ Section IIOStDiv.
   Definition iterᴰ [J A w] (f : ∀ (j : J), D (J + A) (w j)) i : D A (iterᵂ w i).
   Proof.
     exists (iterᴹ (λ j, val (f j)) i).
-    intros P hist s₀ h.
+    intros P hist h.
     simpl. simpl in h.
     destruct h as [iᵂ [helim hi]].
     exists iᵂ. split.
@@ -875,40 +817,22 @@ Section IIOStDiv.
       + auto.
   Defined.
 
-  Definition getᴰ : D state getᵂ.
-  Proof.
-    exists getᴹ.
-    intros P hist s₀ h. apply h.
-  Defined.
-
-  Definition putᴰ (s : state) : D unit (putᵂ s).
-  Proof.
-    exists (putᴹ s).
-    intros P hist s₀ h. apply h.
-  Defined.
-
   Definition openᴰ fp : D file_descr (openᵂ fp).
   Proof.
     exists (openᴹ fp).
-    intros P hist s₀ h. apply h.
+    intros P hist h. apply h.
   Defined.
 
   Definition readᴰ fd : D file_content (readᵂ fd).
   Proof.
     exists (readᴹ fd).
-    intros P hist s₀ h. apply h.
+    intros P hist h. apply h.
   Defined.
 
   Definition closeᴰ fd : D unit (closeᵂ fd).
   Proof.
     exists (closeᴹ fd).
-    intros P hist s₀ h. apply h.
-  Defined.
-
-  Definition histᴰ : D history histᵂ.
-  Proof.
-    exists histᴹ.
-    intros P hist s₀ h. apply h.
+    intros P hist h. apply h.
   Defined.
 
   (** pre and post combinator
@@ -919,12 +843,12 @@ Section IIOStDiv.
   *)
 
   Definition prepostᵂ' [A] (pre : preᵂ) (post : history → run A → Prop) : W' A :=
-    λ P hist s₀, pre hist s₀ ∧ (∀ r, post hist r → val P r).
+    λ P hist, pre hist ∧ (∀ r, post hist r → val P r).
 
   #[export] Instance prepostᵂ_ismono [A] pre post :
     Monotonous (@prepostᵂ' A pre post).
   Proof.
-    intros P Q hPQ hist s₀ h.
+    intros P Q hPQ hist h.
     destruct h as [hpre hpost].
     split.
     - assumption.
@@ -937,12 +861,12 @@ Section IIOStDiv.
 
   Lemma prepostᵂ_mono :
     ∀ A (p p' : preᵂ) (q q' : history → run A → Prop),
-      (∀ hist s₀, p' hist s₀ → p hist s₀) →
+      (∀ hist, p' hist → p hist) →
       (∀ hist r, q hist r → q' hist r) →
       prepostᵂ p q ≤ᵂ prepostᵂ p' q'.
   Proof.
     intros A p p' q q' hp hq.
-    intros post hist s₀ h.
+    intros post hist h.
     destruct h as [hp' hq'].
     split.
     - apply hp. apply hp'.
@@ -956,7 +880,7 @@ Section IIOStDiv.
   Definition always_continuesᵂ [J A] (pre : J → preᵂ) (inv : trace → Prop) (i : J) : W (J + A) :=
     prepostᵂ (pre i) (λ hist r,
       match r with
-      | cnv tr s (inl j) => pre j (rev_append (to_trace tr) hist) s ∧ inv (to_trace tr)
+      | cnv tr (inl j) => pre j (rev_append (to_trace tr) hist) ∧ inv (to_trace tr)
       | _ => False
       end
     ).
@@ -1000,12 +924,12 @@ Section IIOStDiv.
   Proof.
     intros J A pre inv i.
     eapply iterᵂ_coind with (w' := λ j, inv_loopᵂ pre inv j).
-    clear. intros j. intros post hist s₀ h.
+    clear. intros j. intros post hist h.
     simpl. red.
     simpl in h. red in h.
     destruct h as [hpre hpost].
     split. 1: assumption.
-    intros [t s [i | x] | s]. 2,3: contradiction.
+    intros [t [i | x] | s]. 2,3: contradiction.
     intros [hi hinv].
     simpl. red.
     split. 1: assumption.
@@ -1022,24 +946,18 @@ Section IIOStDiv.
 
   Variant ieff : Type → Type :=
   | i_req (p : Prop) : ieff p
-  | i_get : ieff state
-  | i_put (s : state) : ieff unit
   | i_open (p : path) : ieff file_descr
   | i_read (f : file_descr) : ieff file_content
-  | i_close (f : file_descr) : ieff unit
-  | i_hist : ieff history.
+  | i_close (f : file_descr) : ieff unit.
 
   Fixpoint toitree [A] (c : M A) : itree ieff A :=
     match c with
     | retᴹ x => Ret x
     | act_reqᴹ p k => x <- trigger (i_req p) ;; toitree (k x)
     | act_iterᴹ J B g i k => x <- iter (1 := Iter_Kleisli) (λ j, toitree (g j)) i ;; toitree (k x)
-    | act_getᴹ k => x <- trigger i_get ;; toitree (k x)
-    | act_putᴹ s k => trigger (i_put s) ;; toitree k
     | act_openᴹ fp k => x <- trigger (i_open fp) ;; toitree (k x)
     | act_readᴹ fd k => x <- trigger (i_read fd) ;; toitree (k x)
     | act_closeᴹ fd k => trigger (i_close fd) ;; toitree k
-    | act_histᴹ k => x <- trigger i_hist ;; toitree (k x)
     end.
 
   (* BEGIN Copy from dm4ever *)
@@ -1133,18 +1051,16 @@ Section IIOStDiv.
     - unshelve econstructor.
       + intro r.
         eapply p.
-        destruct r as [t s x | s].
+        destruct r as [t x | s].
         * eapply to_trace in t.
           exact (ifintrace t x).
         * exact (sotrace_to_itrace s).
       + intros r r' hr h.
-        destruct r as [t s x | s], r' as [t' s' x' | s']. 2,3: contradiction.
-        * simpl in *. destruct hr as [e ?]. rewrite <- e.
-          intuition subst. assumption.
+        destruct r as [t x | s], r' as [t' x' | s']. 2,3: contradiction.
+        * simpl in *. destruct hr as [e ?]. rewrite <- e. subst. assumption.
         * simpl in *.
           eapply hp. 2: eassumption.
           apply todo.
-    - apply todo.
     - apply todo.
   Defined.
 
@@ -1154,7 +1070,7 @@ Section IIOStDiv.
   Proof.
     intros A c log [post hpost].
     induction c
-    as [ A x | A p k ih | A J C g ihg i k ih | A k ih | A p k ih | A fp k ih | A fd k ih | A fd k ih | A k ih].
+    as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
     - simpl. unfold obs. simpl. split.
       + intros h b hb.
         eapply hpost. 2: eassumption. (* Missing log in w_ispec *)
