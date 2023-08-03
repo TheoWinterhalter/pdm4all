@@ -1070,8 +1070,8 @@ Section IODiv.
         eapply p.
         destruct r as [t x | s].
         * eapply to_trace in t.
-          exact (ifintrace t x).
-        * exact (sotrace_to_itrace s).
+          exact (↑log ++ ifintrace t x).
+        * exact (↑log ++ sotrace_to_itrace s).
       + intros r r' hr h.
         destruct r as [t x | s], r' as [t' x' | s']. 2,3: contradiction.
         * simpl in *. destruct hr as [e ?]. rewrite <- e. subst. assumption.
@@ -1083,7 +1083,7 @@ Section IODiv.
 
   Lemma equiv_specs :
     ∀ A (c : M A) log p,
-      w_ispec (proj1_sig (θ c)) log p ↔ obs (toitree c) log p.
+      w_ispec (val (θ c)) log p ↔ obs (toitree c) log p.
   Proof.
     intros A c log [post hpost].
     induction c
@@ -1092,9 +1092,28 @@ Section IODiv.
       simpl. unfold obs. simpl. split.
       + intros h b hb.
         eapply hpost. 2: eassumption.
+        eapply eutt_eq_bind'. 1: reflexivity.
+        intros _.
+        unfold itrace_refine in hb.
+        eapply rutt_inv_Ret_r in hb. destruct hb as [? [hb ?]]. subst.
+        eapply eqit_inv in hb. simpl in hb.
+        (** Seems ok, up to coinduction, but I expect it to be proven
+            somewhere.
+        *)
         admit.
+      + intros h. eapply h.
+        unfold itrace_refine. apply rutt_Ret. reflexivity.
+    - simpl. unfold obs. unfold reqᵂ'. unfold shift_post. simpl. split.
+      + intros [h e] b hb.
+        eapply ih with (p := h).
+        * simpl.
+          lazymatch goal with
+          | h : val ?x ?y ?z |- val ?x ?y' ?z => replace y' with y
+          end. 1: assumption.
+          apply sig_ext. extensionality r. destruct r. all: reflexivity.
+        * (* I guess that's not true because Req isn't considered silent... *)
+          give_up.
       + admit.
-    - admit.
     - admit.
     - admit.
     - admit.
