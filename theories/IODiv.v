@@ -1174,6 +1174,20 @@ Section IODiv.
 
   Notation iresp_eutr P := (Proper (eutr eq ==> iff) P).
 
+  (* Some lemmas taken from dm4ever *)
+
+  Notation "b ⊑ t" := (itrace_refine t b) (at level 80).
+
+  Lemma bind_trigger_refine :
+    forall (E : Type -> Type) (A R : Type) (b : itree (EvAns E) R)
+                              (e : E A) (k : A -> itree E R),
+      (exists a : A, True) ->
+      b ⊑ ITree.bind (ITree.trigger e) k ->
+      exists a : A, exists (k' : unit -> itrace E R), b ≈ Vis (evans A e a) k' /\ k' tt ⊑ k a.
+  Admitted.
+
+  (* END lemmas *)
+
   Lemma equiv_specs :
     ∀ A (c : M A) log (p : TraceSpecInput A),
       iresp_eutr (proj1_sig p) →
@@ -1196,15 +1210,24 @@ Section IODiv.
         unfold itrace_refine. apply rutt_Ret. reflexivity.
     - simpl. unfold obs. unfold reqᵂ'. unfold shift_post. simpl. split.
       + intros [h e] b hb.
-        eapply ih with (p := h).
-        * simpl. assumption.
-        * simpl.
-          lazymatch goal with
-          | h : val ?x ?y ?z |- val ?x ?y' ?z => replace y' with y
-          end. 1: assumption.
-          apply sig_ext. extensionality r. destruct r. all: reflexivity.
-        * (* I guess that's not true because Req isn't considered silent... *)
-          give_up. (* We should apply hrpost before *)
+        eapply bind_trigger_refine in hb. 2:{ exists h. auto. }
+        destruct hb as [h' [k' [eb ek]]].
+        assert (h = h').
+        { apply proof_irrelevance. }
+        subst h'.
+        eapply hrpost.
+        2:{
+          eapply ih with (p := h).
+          - simpl. assumption.
+          - simpl.
+            lazymatch goal with
+            | h : val ?x ?y ?z |- val ?x ?y' ?z => replace y' with y
+            end. 1: assumption.
+            apply sig_ext. extensionality r. destruct r. all: reflexivity.
+          - exact ek.
+        }
+        (* I'm not sure I understand it, but it feels wrong? *)
+        give_up.
       + admit.
     - admit.
     - admit.
