@@ -1081,11 +1081,105 @@ Section IODiv.
     - exact (ev_list_to_hist log).
   Defined.
 
+  (** Because i_req is recorded in the itrace, but not for our own effect,
+      we show the two specs are the same only for post-conditions that ignore
+      those events.
+      (We need to do the same for logs I guess?)
+      We thus define equivalence up to req (eutr).
+  *)
+
+  Section EUTR.
+
+    Context {E : Type → Type}.
+    Context {A B : Type}.
+    Context (R : A → B → Prop).
+    Context (ignore : ∀ u, E u → Prop).
+
+    Inductive eqitfF (b1 b2 : bool) vclo (sim : itree E A → itree E B → Prop) :
+      itree' E A → itree' E B → Prop :=
+    | EqfRet r1 r2 :
+        R r1 r2 →
+        eqitfF b1 b2 vclo sim (RetF r1) (RetF r2)
+    | EqfTau m1 m2 :
+        sim m1 m2 →
+        eqitfF b1 b2 vclo sim (TauF m1) (TauF m2)
+    | EqfVis {u} (e : E u) k1 k2 :
+        (∀ v, vclo sim (k1 v) (k2 v) : Prop) →
+        eqitfF b1 b2 vclo sim (VisF e k1) (VisF e k2)
+    | EqfTauL t1 ot2 :
+        b1 = true →
+        eqitfF b1 b2 vclo sim (observe t1) ot2 →
+        eqitfF b1 b2 vclo sim (TauF t1) ot2
+    | EqfTauR ot1 t2 :
+        b2 = true →
+        eqitfF b1 b2 vclo sim ot1 (observe t2) →
+        eqitfF b1 b2 vclo sim ot1 (TauF t2)
+    | EqfVisL {u} (e : E u) k1 ot2 :
+        ignore u e →
+        (∀ v, eqitfF b1 b2 vclo sim (observe (k1 v)) ot2) →
+        eqitfF b1 b2 vclo sim (VisF e k1) ot2
+    | EqfVisR ot1 {u} (e : E u) k2 :
+        ignore u e →
+        (∀ v, eqitfF b1 b2 vclo sim ot1 (observe (k2 v))) →
+        eqitfF b1 b2 vclo sim ot1 (VisF e k2)
+    .
+
+    Hint Constructors eqitfF : itree.
+
+    Definition eqitf_ b1 b2 vclo sim : itree E A → itree E B → Prop :=
+      λ t1 t2, eqitfF b1 b2 vclo sim (observe t1) (observe t2).
+
+    Hint Unfold eqitf_ : itree.
+
+    From Paco Require Import paco.
+
+    Lemma eqitfF_mono :
+      ∀ b1 b2 x0 x1 vclo vclo' sim sim',
+        eqitfF b1 b2 vclo sim x0 x1 →
+        monotone2 vclo →
+        vclo <3= vclo' →
+        sim <2= sim' →
+        eqitfF b1 b2 vclo' sim' x0 x1.
+    Proof.
+      intros b1 b2 x0 x1 vclo vclo' sim sim' h. intros.
+      induction h. all: eauto with itree.
+    Qed.
+
+    Lemma eqitf__mono :
+      ∀ b1 b2 vclo,
+        monotone2 vclo →
+        monotone2 (eqitf_ b1 b2 vclo).
+    Proof.
+      intros b1 b2 vclo h.
+      do 2 red. intros. eapply eqitfF_mono ; eauto.
+    Qed.
+
+    Hint Resolve eqitf__mono : paco.
+
+    Lemma eqitf_idclo_mono :
+      monotone2 (@id (itree E A → itree E B → Prop)).
+    Proof.
+      unfold id. eauto.
+    Qed.
+
+    Hint Resolve eqitf_idclo_mono : paco.
+
+    Definition eqitf b1 b2 : itree E A → itree E B → Prop :=
+      paco2 (eqitf_ b1 b2 id) bot2.
+
+  End EUTR.
+
+  Definition eutr {A B} (R : A → B → Prop) : itrace ieff A → itrace ieff B → Prop :=
+    eqitf R (λ x y, match y with evans A (i_req P) p => True | _ => False end) true true.
+
+  Notation iresp_eutr P := (Proper (eutr eq ==> iff) P).
+
   Lemma equiv_specs :
-    ∀ A (c : M A) log p,
+    ∀ A (c : M A) log (p : TraceSpecInput A),
+      iresp_eutr (proj1_sig p) →
       w_ispec (val (θ c)) log p ↔ obs (toitree c) log p.
   Proof.
-    intros A c log [post hpost].
+    intros A c log [post hpost] hrpost.
     induction c
     as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
     - (* w_ispec is not using history the same way as TraceSpec *)
@@ -1096,31 +1190,26 @@ Section IODiv.
         intros _.
         unfold itrace_refine in hb.
         eapply rutt_inv_Ret_r in hb. destruct hb as [? [hb ?]]. subst.
-        eapply eqit_inv in hb. simpl in hb.
-        (** Seems ok, up to coinduction, but I expect it to be proven
-            somewhere.
-        *)
-        admit.
+        eapply eutt_cong_euttge. 1: eassumption. 1: reflexivity.
+        reflexivity.
       + intros h. eapply h.
         unfold itrace_refine. apply rutt_Ret. reflexivity.
     - simpl. unfold obs. unfold reqᵂ'. unfold shift_post. simpl. split.
       + intros [h e] b hb.
         eapply ih with (p := h).
+        * simpl. assumption.
         * simpl.
           lazymatch goal with
           | h : val ?x ?y ?z |- val ?x ?y' ?z => replace y' with y
           end. 1: assumption.
           apply sig_ext. extensionality r. destruct r. all: reflexivity.
         * (* I guess that's not true because Req isn't considered silent... *)
-          give_up.
+          give_up. (* We should apply hrpost before *)
       + admit.
-    - admit.
-    - admit.
-    - admit.
     - admit.
     - admit.
     - admit.
     - admit.
   Admitted.
 
-End IIOStDiv.
+End IODiv.
