@@ -976,7 +976,7 @@ Section IODiv.
       ∀ J A f i tr j pre r pre',
         validrun (f i) (cnv tr (inl j)) pre →
         validrun (iterᴹ f j) r pre' →
-        validrun (@iterᴹ J A f i) (run_prepend tr r) (λ h, pre h ∧ pre' h)
+        validrun (@iterᴹ J A f i) (run_prepend tr r) (λ h, pre h ∧ pre' (rev_append (to_trace tr) h))
   | iter_cnv_inr_run :
       ∀ J A f i tr y pre,
         validrun (f i) (cnv tr (inr y)) pre →
