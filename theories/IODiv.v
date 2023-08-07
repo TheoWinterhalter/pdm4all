@@ -941,4 +941,11 @@ Section IODiv.
     - apply always_continues_aux. assumption.
   Qed.
 
+  (* Alternate definition of iterᵂ using Coq coinduction. *)
+
+  Fail CoInductive alt_iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+  | prove_iter post hist h :
+      val (iter_expand w i (λ j, ⟨ alt_iterᵂ' w j | h j ⟩)) post hist →
+      alt_iterᵂ' w i post hist.
+
 End IODiv.

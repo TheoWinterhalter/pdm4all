@@ -17,6 +17,7 @@ Tactic Notation "forward" constr(H) "by" tactic(tac) := forward_gen H tac.
 
 Notation val x := (let 'exist _ t _ := x in t).
 Notation "⟨ u ⟩" := (exist _ u _).
+Notation "⟨ u | h ⟩" := (exist _ u h) (only parsing).
 
 Definition prf [A P] (p : { x : A | P x }) : P (val p).
 Proof.
