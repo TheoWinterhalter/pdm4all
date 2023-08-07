@@ -1020,38 +1020,38 @@ Section IODiv.
     end.
 
   (* Maybe we should define this directly on M *)
-  CoInductive validrun [A] (hist : history) : itree A → run A → Prop :=
-  | ret_run : ∀ x, validrun hist (iret x) (cnv [] x)
+  CoInductive validrun [A] : itree A → run A → preᵂ → Prop :=
+  | ret_run : ∀ x, validrun (iret x) (cnv [] x) (λ hist, True)
   | req_run :
-      ∀ p k h r,
-        validrun hist (k h) r →
-        validrun hist (ireq p k) r
+      ∀ p k h r pre,
+        validrun (k h) r pre →
+        validrun (ireq p k) r pre
   | open_run :
-      ∀ fp k fd r,
-        validrun hist (k fd) r →
-        validrun hist (iopen fp k) (run_prepend [ Some (EOpen fp fd) ] r)
+      ∀ fp k fd r pre,
+        validrun (k fd) r pre →
+        validrun (iopen fp k) (run_prepend [ Some (EOpen fp fd) ] r) pre
   | read_run :
-      ∀ fd k fc r,
-        is_open fd hist →
-        validrun hist (k fc) r →
-        validrun hist (iread fd k) (run_prepend [ Some (ERead fd fc) ] r)
+      ∀ fd k fc r pre,
+        validrun (k fc) r pre →
+        validrun
+          (iread fd k)
+          (run_prepend [ Some (ERead fd fc) ] r)
+          (λ hist, pre hist ∧ is_open fd hist)
   | close_run :
-      ∀ fd k r,
-        is_open fd hist →
-        validrun hist k r →
-        validrun hist (iclose fd k) (run_prepend [ Some (EClose fd) ] r)
+      ∀ fd k r pre,
+        validrun k r pre →
+        validrun
+          (iclose fd k)
+          (run_prepend [ Some (EClose fd) ] r)
+          (λ hist, pre hist ∧ is_open fd hist)
   | tau_run :
-      ∀ k r,
-        validrun hist k r →
-        validrun hist (itau k) (run_prepend [ None ] r)
+      ∀ k r pre,
+        validrun k r pre →
+        validrun (itau k) (run_prepend [ None ] r) pre
   .
 
-  (** I guess this is currently wrong, because the preconditions on history
-      are not correctly handled: they are currently assumptions rather than
-      obligations right?
-  *)
   Definition iwp' [A] (t : itree A) : W' A :=
     λ post hist,
-      ∀ r, validrun hist t r → val post r.
+      ∀ r pre, validrun t r pre → pre hist ∧ val post r.
 
 End IODiv.
