@@ -957,42 +957,51 @@ Section IODiv.
       + reflexivity.
   Qed.
 
-  From Paco Require Import paco.
+  (** Alternative semantics where we use coinductive data first.
+      Essentially a particular case of interaction tree.
+  *)
 
-  Section AltIter.
+  CoInductive itree A :=
+  | iret (x : A)
+  | ireq (p : Prop) (k : p → itree A)
+  | iopen (p : path) (k : file_descr → itree A)
+  | iread (f : file_descr) (k : file_content → itree A)
+  | iclose (f : file_descr) (k : itree A)
+  | itau (k : itree A).
 
-    Context {J A : Type}.
+  Arguments iret [_].
+  Arguments ireq [_].
+  Arguments iopen [_].
+  Arguments iread [_].
+  Arguments iclose [_].
+  Arguments itau [_].
 
-    Inductive alt_iter_gen gen (w : J → W (J + A)) (i : J) : W' A :=
-    | _alt_iter_gen :
-        ∀ post hist h,
-          val (iter_expand w i (λ j, ⟨ gen w j | h j ⟩)) post hist →
-          alt_iter_gen gen w i post hist.
+  CoFixpoint ibind [A B] (c : itree A) (f : A → itree B) : itree B :=
+    match c with
+    | iret x => f x
+    | ireq p k => ireq p (λ h, ibind (k h) f)
+    | iopen fp k => iopen fp (λ x, ibind (k x) f)
+    | iread fd k => iread fd (λ x, ibind (k x) f)
+    | iclose fd k => iclose fd (ibind k f)
+    | itau k => itau (ibind k f)
+    end.
 
-    (* Hint Constructors alt_iter_gen. *)
+  #[export] Instance Monad_itree : Monad itree := {|
+    ret := iret ;
+    bind := ibind
+  |}.
 
-    Definition alt_iter' (w : J → W (J + A)) (i : J) : W' A :=
-      paco4 alt_iter_gen bot4 w i.
+  #[export] Instance ReqMonad_itree : ReqMonad itree := {|
+    req p := ireq p (λ h, iret h)
+  |}.
 
-    Lemma alt_iter_paco_mon :
-      monotone4 alt_iter_gen.
-    Proof.
-      (* pmonauto. *)
-      unfold monotone4. intros w i post hist R R' h hRR'.
-      destruct h as [post hist h prf].
-      econstructor.
-      unfold iter_expand.
-      eapply iter_expand_mono_k. 2: eassumption.
-      cbn beta. intros j post' hist' hh.
-      apply hRR'. assumption.
-      Unshelve. intros j P Q hPQ hist' h'. (* :( *)
-    Abort.
-
-    Fail CoInductive alt_iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-    | prove_iter post hist h :
-        val (iter_expand w i (λ j, ⟨ alt_iterᵂ' w j | h j ⟩)) post hist →
-        alt_iterᵂ' w i post hist.
-
-  End AltIter.
+  (* Doesn't work for some reason. *)
+  Fail CoFixpoint iiter [J A] (f : J → itree (J + A)) (i : J) : itree A :=
+    bind (f i) (λ x,
+      match x with
+      | inl j => itau (iiter f j)
+      | inr y => iret y
+      end
+    ).
 
 End IODiv.
