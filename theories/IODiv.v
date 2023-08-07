@@ -976,15 +976,23 @@ Section IODiv.
   Arguments iclose [_].
   Arguments itau [_].
 
-  CoFixpoint ibind [A B] (c : itree A) (f : A → itree B) : itree B :=
-    match c with
-    | iret x => f x
-    | ireq p k => ireq p (λ h, ibind (k h) f)
-    | iopen fp k => iopen fp (λ x, ibind (k x) f)
-    | iread fd k => iread fd (λ x, ibind (k x) f)
-    | iclose fd k => iclose fd (ibind k f)
-    | itau k => itau (ibind k f)
-    end.
+  (** We follow the itree practice of defining subst before bind to be able to
+      use bind in other cofixpoints.
+  *)
+
+  Definition isubst [A B] (f : A → itree B) : itree A → itree B :=
+    cofix _isubst (c : itree A) : itree B :=
+      match c with
+      | iret x => f x
+      | ireq p k => ireq p (λ h, _isubst (k h))
+      | iopen fp k => iopen fp (λ x, _isubst (k x))
+      | iread fd k => iread fd (λ x, _isubst (k x))
+      | iclose fd k => iclose fd (_isubst k)
+      | itau k => itau (_isubst k)
+      end.
+
+  Definition ibind [A B] (c : itree A) (f : A → itree B) : itree B :=
+    isubst f c.
 
   #[export] Instance Monad_itree : Monad itree := {|
     ret := iret ;
@@ -995,8 +1003,7 @@ Section IODiv.
     req p := ireq p (λ h, iret h)
   |}.
 
-  (* Doesn't work for some reason. *)
-  Fail CoFixpoint iiter [J A] (f : J → itree (J + A)) (i : J) : itree A :=
+  CoFixpoint iiter [J A] (f : J → itree (J + A)) (i : J) : itree A :=
     bind (f i) (λ x,
       match x with
       | inl j => itau (iiter f j)
