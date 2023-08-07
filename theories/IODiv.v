@@ -957,61 +957,7 @@ Section IODiv.
       + reflexivity.
   Qed.
 
-  (** Alternative semantics where we use coinductive data first.
-      Essentially a particular case of interaction tree.
-  *)
-
-  CoInductive itree A :=
-  | iret (x : A)
-  | ireq (p : Prop) (k : p → itree A)
-  | iopen (p : path) (k : file_descr → itree A)
-  | iread (f : file_descr) (k : file_content → itree A)
-  | iclose (f : file_descr) (k : itree A)
-  | itau (k : itree A).
-
-  Arguments iret [_].
-  Arguments ireq [_].
-  Arguments iopen [_].
-  Arguments iread [_].
-  Arguments iclose [_].
-  Arguments itau [_].
-
-  (** We follow the itree practice of defining subst before bind to be able to
-      use bind in other cofixpoints.
-  *)
-
-  Definition isubst [A B] (f : A → itree B) : itree A → itree B :=
-    cofix _isubst (c : itree A) : itree B :=
-      match c with
-      | iret x => f x
-      | ireq p k => ireq p (λ h, _isubst (k h))
-      | iopen fp k => iopen fp (λ x, _isubst (k x))
-      | iread fd k => iread fd (λ x, _isubst (k x))
-      | iclose fd k => iclose fd (_isubst k)
-      | itau k => itau (_isubst k)
-      end.
-
-  Definition ibind [A B] (c : itree A) (f : A → itree B) : itree B :=
-    isubst f c.
-
-  #[export] Instance Monad_itree : Monad itree := {|
-    ret := iret ;
-    bind := ibind
-  |}.
-
-  #[export] Instance ReqMonad_itree : ReqMonad itree := {|
-    req p := ireq p (λ h, iret h)
-  |}.
-
-  CoFixpoint iiter [J A] (f : J → itree (J + A)) (i : J) : itree A :=
-    bind (f i) (λ x,
-      match x with
-      | inl j => itau (iiter f j)
-      | inr y => iret y
-      end
-    ).
-
-  (* Now we connect them to runs *)
+  (** Alternative semantics where we use a coinductive predicate. *)
 
   Definition run_prepend [A] (tr : otrace) (r : run A) : run A :=
     match r with
@@ -1019,38 +965,38 @@ Section IODiv.
     | div st => div (stream_prepend tr st)
     end.
 
-  (* Maybe we should define this directly on M *)
-  CoInductive validrun [A] : itree A → run A → preᵂ → Prop :=
-  | ret_run : ∀ x, validrun (iret x) (cnv [] x) (λ hist, True)
+  CoInductive validrun : ∀ {A}, M A → run A → preᵂ → Prop :=
+  | ret_run :
+      ∀ A (x : A),
+        validrun (ret x) (cnv [] x) (λ hist, True)
   | req_run :
-      ∀ p k h r pre,
-        validrun (k h) r pre →
-        validrun (ireq p k) r pre
+      ∀ p h,
+        validrun (req p) (cnv [] h) (λ hist, p)
+  | iter_cnv_inl_run :
+      ∀ J A f i tr j pre r pre',
+        validrun (f i) (cnv tr (inl j)) pre →
+        validrun (iterᴹ f j) r pre' →
+        validrun (@iterᴹ J A f i) (run_prepend tr r) (λ h, pre h ∧ pre' h)
+  | iter_cnv_inr_run :
+      ∀ J A f i tr y pre,
+        validrun (f i) (cnv tr (inr y)) pre →
+        validrun (@iterᴹ J A f i) (cnv tr y) pre
+  | iter_div_run :
+      ∀ J A f i st pre,
+        validrun (f i) (div st) pre →
+        validrun (@iterᴹ J A f i) (div st) pre
   | open_run :
-      ∀ fp k fd r pre,
-        validrun (k fd) r pre →
-        validrun (iopen fp k) (run_prepend [ Some (EOpen fp fd) ] r) pre
+      ∀ fp fd,
+        validrun (openᴹ fp) (cnv [ Some (EOpen fp fd) ] fd) (λ hist, True)
   | read_run :
-      ∀ fd k fc r pre,
-        validrun (k fc) r pre →
-        validrun
-          (iread fd k)
-          (run_prepend [ Some (ERead fd fc) ] r)
-          (λ hist, pre hist ∧ is_open fd hist)
+      ∀ fd fc,
+        validrun (readᴹ fd) (cnv [ Some (ERead fd fc) ] fc) (is_open fd)
   | close_run :
-      ∀ fd k r pre,
-        validrun k r pre →
-        validrun
-          (iclose fd k)
-          (run_prepend [ Some (EClose fd) ] r)
-          (λ hist, pre hist ∧ is_open fd hist)
-  | tau_run :
-      ∀ k r pre,
-        validrun k r pre →
-        validrun (itau k) (run_prepend [ None ] r) pre
+      ∀ fd,
+        validrun (closeᴹ fd) (cnv [ Some (EClose fd) ] tt) (is_open fd)
   .
 
-  Definition iwp' [A] (t : itree A) : W' A :=
+  Definition θalt [A] (t : M A) : W' A :=
     λ post hist,
       ∀ r pre, validrun t r pre → pre hist ∧ val post r.
 
