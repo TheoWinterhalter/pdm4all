@@ -943,9 +943,56 @@ Section IODiv.
 
   (* Alternate definition of iterᵂ using Coq coinduction. *)
 
-  Fail CoInductive alt_iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
-  | prove_iter post hist h :
-      val (iter_expand w i (λ j, ⟨ alt_iterᵂ' w j | h j ⟩)) post hist →
-      alt_iterᵂ' w i post hist.
+  Lemma iter_expand_mono_k :
+    ∀ J A (w : J → W (J + A)) (i : J) (k k' : J → W A),
+      (∀ j, k j ≤ᵂ k' j) →
+      iter_expand w i k ≤ᵂ iter_expand w i k'.
+  Proof.
+    intros J A w i k k' hk.
+    unfold iter_expand. eapply bind_mono.
+    - reflexivity.
+    - intros [j | y].
+      + eapply bind_mono. 1: reflexivity.
+        intros _. apply hk.
+      + reflexivity.
+  Qed.
+
+  From Paco Require Import paco.
+
+  Section AltIter.
+
+    Context {J A : Type}.
+
+    Inductive alt_iter_gen gen (w : J → W (J + A)) (i : J) : W' A :=
+    | _alt_iter_gen :
+        ∀ post hist h,
+          val (iter_expand w i (λ j, ⟨ gen w j | h j ⟩)) post hist →
+          alt_iter_gen gen w i post hist.
+
+    (* Hint Constructors alt_iter_gen. *)
+
+    Definition alt_iter' (w : J → W (J + A)) (i : J) : W' A :=
+      paco4 alt_iter_gen bot4 w i.
+
+    Lemma alt_iter_paco_mon :
+      monotone4 alt_iter_gen.
+    Proof.
+      (* pmonauto. *)
+      unfold monotone4. intros w i post hist R R' h hRR'.
+      destruct h as [post hist h prf].
+      econstructor.
+      unfold iter_expand.
+      eapply iter_expand_mono_k. 2: eassumption.
+      cbn beta. intros j post' hist' hh.
+      apply hRR'. assumption.
+      Unshelve. intros j P Q hPQ hist' h'. (* :( *)
+    Abort.
+
+    Fail CoInductive alt_iterᵂ' [J A] (w : J → W (J + A)) (i : J) : W' A :=
+    | prove_iter post hist h :
+        val (iter_expand w i (λ j, ⟨ alt_iterᵂ' w j | h j ⟩)) post hist →
+        alt_iterᵂ' w i post hist.
+
+  End AltIter.
 
 End IODiv.
