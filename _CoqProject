@@ -21,3 +21,4 @@ theories/DM4FreeState.v
 theories/Div.v
 theories/IIOStDiv.v
 theories/IIOStDivAlt.v
+theories/IODiv.v
