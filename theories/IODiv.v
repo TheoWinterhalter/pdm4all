@@ -965,6 +965,16 @@ Section IODiv.
     | div st => div (stream_prepend tr st)
     end.
 
+  (** The following definition is wrong!
+      - It doesn't handle bind at all, either we add a case for bind or we need
+      to put back the continuations.
+      - More crucially, the definition for iter suffers from the same issue as
+      our first iterᵂ: in case f i := ret (inl i), then anything goes: we can
+      prove it converges to any value or that it diverges with any trace.
+      As such the problem has nothing to do with whether the cofixpoint was
+      valid or not in the first place!
+  *)
+
   CoInductive validrun : ∀ {A}, M A → run A → preᵂ → Prop :=
   | ret_run :
       ∀ A (x : A),
