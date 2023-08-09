@@ -1074,27 +1074,46 @@ Section IODiv.
   Axiom uipa : ∀ A, UIP A.
   #[local] Existing Instance uipa.
 
+  Lemma iwp_to_itree_θ :
+    ∀ A (c : M A),
+      iwp (to_itree c) (θ c).
+  Proof.
+    intros A c.
+    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
+    - constructor.
+    - simpl. constructor. assumption.
+    - admit.
+    - simpl. constructor. assumption.
+    - simpl. constructor. assumption.
+    - simpl. constructor. assumption.
+  Admitted.
+
   Lemma equiv_θ :
     ∀ A (c : M A) post hist,
       val (θ c) post hist ↔ θalt c post hist.
   Proof.
-    intros A c post hist.
-    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih] in post, hist |- *.
-    - split.
-      + intros h w hw. inversion hw. subst. assumption.
-      + intros h. apply h. simpl. constructor.
-    - split.
-      + intros h w hw. inversion hw. subst.
+    intros A c post hist. split.
+    - induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih] in post, hist |- *.
+      all: intros h w hw.
+      + inversion hw. subst. assumption.
+      + inversion hw. subst.
         noconf H1. simpl. simpl in h. eapply ismono. 2: eapply h.
         simpl. intros [tr prf |] hh. 2: auto.
         eapply ih in hh. apply hh. eauto.
-      + intro h.
-        apply h. simpl. constructor.
-        intro prf. (* Probably not the right way to go. Might need prop ext. *)
-    - admit.
-    - admit.
-    - admit.
-    - admit.
+      + admit.
+      + inversion hw. subst.
+        simpl. simpl in h. eapply ismono. 2: apply h.
+        simpl. intros [tr x |] hh. 2: auto.
+        eapply ih in hh. apply hh. eauto.
+      + inversion hw. subst.
+        simpl. simpl in h. eapply ismono. 2: apply h.
+        simpl. intros [tr x |] hh. 2: auto.
+        eapply ih in hh. apply hh. eauto.
+      + inversion hw. subst.
+        simpl. simpl in h. eapply ismono. 2: apply h.
+        simpl. intros [tr x |] hh. 2: auto.
+        eapply ih in hh. apply hh. eauto.
+    - intros h. apply h. apply iwp_to_itree_θ.
   Admitted.
 
 End IODiv.
