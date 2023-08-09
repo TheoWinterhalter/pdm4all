@@ -1017,35 +1017,40 @@ Section IODiv.
       end
     ).
 
-  CoInductive validrun [A] : itree A → run A → preᵂ → Prop :=
-  | ret_run :
-      ∀ x,
-        validrun (iret x) (cnv [] x) (λ hist, True)
-  | req_run :
-      ∀ p k h r pre,
-        validrun (k h) r pre →
-        validrun (ireq p k) r (λ hist, p ∧ pre hist)
-  | open_run :
-      ∀ fp k fd r pre,
-        validrun (k fd) r pre →
-        validrun (iopen fp k) (run_prepend [ Some (EOpen fp fd) ] r) pre
-  | read_run :
-      ∀ fd k fc r pre,
-        validrun (k fc) r pre →
-        validrun (iread fd k) (run_prepend [ Some (ERead fd fc) ] r) (λ h, is_open fd h ∧ pre (rev_append [ ERead fd fc ] h))
-  | close_run :
-      ∀ fd k r pre,
-        validrun k r pre →
-        validrun (iclose fd k) (run_prepend [ Some (EClose fd) ] r) (λ h, is_open fd h ∧ pre (rev_append [ EClose fd ] h))
-  | tau_run :
-      ∀ k r pre,
-        validrun k r pre →
-        validrun (itau k) (run_prepend [ None ] r) pre
-  .
+  (* We cannot define it as a cofixpoint so we use a relation. *)
+  CoInductive iwp [A] : itree A → W A → Prop :=
+  | wp_ret : ∀ x, iwp (iret x) (retᵂ x)
+  | wp_req :
+      ∀ p k wk,
+        (∀ h, iwp (k h) (wk h)) →
+        iwp (ireq p k) (bind (reqᵂ p) wk)
+  | wp_open :
+      ∀ fp k wk,
+        (∀ fd, iwp (k fd) (wk fd)) →
+        iwp (iopen fp k) (bind (openᵂ fp) wk)
+  | wp_read :
+      ∀ fd k wk,
+        (∀ fc, iwp (k fc) (wk fc)) →
+        iwp (iread fd k) (bind (readᵂ fd) wk)
+  | wp_close :
+      ∀ fd k wk,
+        iwp k wk →
+        iwp (iclose fd k) (bind (closeᵂ fd) (λ _, wk))
+  | wp_tau :
+      ∀ k wk,
+        iwp k wk →
+        iwp (itau k) (bind tauᵂ (λ _, wk)).
+
+  (* Alternative, but that means problems with W' vs W *)
+  (* CoInductive iwp [A] : itree A → W' A :=
+  | wp_ret :
+      ∀ x (post : postᵂ A) hist,
+        val post (cnv [] x) →
+        iwp (iret x) post hist. *)
 
   Definition θ_itree [A] (t : itree A) : W' A :=
     λ post hist,
-      ∀ r pre, validrun t r pre → pre hist ∧ val post r.
+      ∀ w, iwp t w → val w post hist.
 
   (* Interpretation from M *)
 
@@ -1074,23 +1079,18 @@ Section IODiv.
       val (θ c) post hist ↔ θalt c post hist.
   Proof.
     intros A c post hist.
-    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
-    - simpl. unfold retᵂ'. unfold θalt, θ_itree. simpl. split.
-      + intros h r pre hr. inversion hr. subst. intuition auto.
-      + intros h. eapply h. constructor.
-    - simpl. unfold reqᵂ'. unfold θalt, θ_itree. simpl. split.
-      + intros [h hp] r pre hr.
-        eapply ih in hp as hh. unfold θalt, θ_itree in hh.
-        inversion hr. subst. noconf H1.
-        assert (h = h0) by apply proof_irrelevance. subst h0.
-        eapply hh in H3. intuition eauto.
-        eapply shift_post_nil. assumption.
-      + intros h.
-        (* specialize h with (1 := req_run _ _ _ _ _ _). *)
-        (** Somehow I already need a proof of h, so there is probably something
-            wrong with my def.
-        *)
-        admit.
+    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih] in post, hist |- *.
+    - split.
+      + intros h w hw. inversion hw. subst. assumption.
+      + intros h. apply h. simpl. constructor.
+    - split.
+      + intros h w hw. inversion hw. subst.
+        noconf H1. simpl. simpl in h. eapply ismono. 2: eapply h.
+        simpl. intros [tr prf |] hh. 2: auto.
+        eapply ih in hh. apply hh. eauto.
+      + intro h.
+        apply h. simpl. constructor.
+        intro prf. (* Probably not the right way to go. Might need prop ext. *)
     - admit.
     - admit.
     - admit.
