@@ -1074,6 +1074,106 @@ Section IODiv.
   Axiom uipa : ∀ A, UIP A.
   #[local] Existing Instance uipa.
 
+  Definition weq [A] (w w' : W A) :=
+    ∀ post hist, val w post hist ↔ val w' post hist.
+
+  Notation "x =ᵂ y" := (weq x y) (at level 80).
+
+  Lemma weq_eq :
+    ∀ A (w w' : W A),
+      w =ᵂ w' →
+      w = w'.
+  Proof.
+    intros A w w' e.
+    apply sig_ext. extensionality post. extensionality hist.
+    apply propositional_extensionality. apply e.
+  Qed.
+
+  Lemma bind_ret :
+    ∀ A B x (wf : A → W B),
+      bindᵂ (retᵂ x) wf = wf x.
+  Proof.
+    intros A B x wf.
+    apply weq_eq. intros post hist. split. all: intro h.
+    - simpl in h. eapply ismono. 2: exact h.
+      simpl. intros [] hh. all: auto.
+    - simpl. eapply ismono. 2: exact h.
+      simpl. intros [] hh. all: auto.
+  Qed.
+
+  Lemma bind_assoc :
+    ∀ A B C (w : W A) (wf : A → W B) (wg : B → W C),
+      bindᵂ w (λ x, bindᵂ (wf x) wg) = bindᵂ (bindᵂ w wf) wg.
+  Proof.
+    intros A B C w wf wg.
+    apply weq_eq. intros post hist. split.
+    - simpl. intro h. red. red in h.
+      eapply ismono. 2: exact h.
+      simpl. intros []. 2: auto.
+      intro hh. red in hh.
+      eapply ismono. 2: exact hh.
+      simpl. intros []. 2: auto.
+      intro h3.
+      rewrite to_trace_app. rewrite rev_append_rev. rewrite rev_app_distr.
+      rewrite <- app_assoc.
+      rewrite 2!rev_append_rev in h3.
+      eapply ismono. 2: exact h3.
+      simpl. intros [] h4.
+      + rewrite <- app_assoc. assumption.
+      + rewrite <- stream_prepend_app. assumption.
+    - eapply bindᵂ_assoc.
+  Qed.
+
+  Definition itree_unfold [A] (t : itree A) : itree A :=
+    match t with
+    | iret x => iret x
+    | ireq p k => ireq p k
+    | iopen fp k => iopen fp k
+    | iread fd k => iread fd k
+    | iclose fd k => iclose fd k
+    | itau k => itau k
+    end.
+
+  Lemma itree_unfold_eq :
+    ∀ A (t : itree A), t = itree_unfold t.
+  Proof.
+    intros A t.
+    destruct t. all: reflexivity.
+  Qed.
+
+  Lemma iwp_bind :
+    ∀ A B (t : itree A) (f : A → itree B) w wf,
+      iwp t w →
+      (∀ x, iwp (f x) (wf x)) →
+      iwp (ibind t f) (bindᵂ w wf).
+  Proof.
+    intros A B t f w wf h hf.
+    unfold ibind.
+    revert t w h. cofix cih. intros t w h.
+    destruct t.
+    - inversion h. rewrite bind_ret.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      fold (itree_unfold (f x)).
+      rewrite <- (itree_unfold_eq _ (f x)).
+      apply hf.
+    - inversion h.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      lazymatch goal with
+      | |- context C[ cofix foo : _ := _ ] =>
+        let C' := context C[isubst f] in
+        change C'
+      end.
+      rewrite <- bind_assoc.
+      constructor.
+      intro prf. eapply cih. noconf H1. apply H2.
+    - admit.
+    - admit.
+    - admit.
+    - admit.
+  Admitted.
+
   Lemma iwp_to_itree_θ :
     ∀ A (c : M A),
       iwp (to_itree c) (θ c).
@@ -1082,7 +1182,13 @@ Section IODiv.
     induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
     - constructor.
     - simpl. constructor. assumption.
-    - admit.
+    - revert i. cofix f. intro i.
+      simpl. apply iwp_bind. 2: eapply ih.
+      rewrite (itree_unfold_eq _ (iiter _ _)).
+      unfold iiter. unfold bind. unfold Monad_itree.
+      (* unfold ibind.
+      unfold isubst. *)
+      admit.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
