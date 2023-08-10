@@ -1168,11 +1168,51 @@ Section IODiv.
       rewrite <- bind_assoc.
       constructor.
       intro prf. eapply cih. noconf H1. apply H2.
-    - admit.
-    - admit.
-    - admit.
-    - admit.
-  Admitted.
+    - inversion h.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      lazymatch goal with
+      | |- context C[ cofix foo : _ := _ ] =>
+        let C' := context C[isubst f] in
+        change C'
+      end.
+      rewrite <- bind_assoc.
+      constructor.
+      intro fd. eapply cih. noconf H1. apply H2.
+    - inversion h.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      lazymatch goal with
+      | |- context C[ cofix foo : _ := _ ] =>
+        let C' := context C[isubst f] in
+        change C'
+      end.
+      rewrite <- bind_assoc.
+      constructor.
+      intro fc. eapply cih. noconf H1. apply H2.
+    - inversion h.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      lazymatch goal with
+      | |- context C[ cofix foo : _ := _ ] =>
+        let C' := context C[isubst f] in
+        change C'
+      end.
+      rewrite <- bind_assoc.
+      constructor.
+      eapply cih. assumption.
+    - inversion h.
+      rewrite (itree_unfold_eq _ (isubst _ _)).
+      unfold isubst. unfold itree_unfold.
+      lazymatch goal with
+      | |- context C[ cofix foo : _ := _ ] =>
+        let C' := context C[isubst f] in
+        change C'
+      end.
+      rewrite <- bind_assoc.
+      constructor.
+      eapply cih. assumption.
+  Qed.
 
   Lemma iwp_to_itree_θ :
     ∀ A (c : M A),
