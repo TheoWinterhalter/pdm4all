@@ -1238,6 +1238,28 @@ Section IODiv.
     - simpl. constructor. assumption.
   Qed.
 
+  (* Lemma iwp_bind_inv :
+    ∀ A B (t : itree A) (f : A → itree B) w,
+      iwp (ibind t f) w →
+      ∃ wt wf, iwp t wt ∧ (∀ x, iwp (f x) (wf x)) ∧ w = bindᵂ wt wf.
+  Proof.
+    intros A B t f w h.
+    unfold ibind in h.
+    destruct t.
+    - rewrite (itree_unfold_eq _ (isubst _ _)) in h.
+      unfold isubst in h. unfold itree_unfold in h.
+      fold (itree_unfold (f x)) in h.
+      rewrite <- (itree_unfold_eq _ (f x)) in h.
+      eexists _, (λ _, w). intuition eauto.
+      + constructor.
+      +
+      +
+    -
+    -
+    -
+    -
+    - *)
+
   Lemma equiv_θ :
     ∀ A (c : M A) post hist,
       val (θ c) post hist ↔ θalt c post hist.
@@ -1250,7 +1272,15 @@ Section IODiv.
         noconf H1. simpl. simpl in h. eapply ismono. 2: eapply h.
         simpl. intros [tr prf |] hh. 2: auto.
         eapply ih in hh. apply hh. eauto.
-      + admit.
+      + cbn - [iterᵂ] in h. unfold bindᵂ' in h.
+        simpl in hw.
+        inversion hw. all: subst.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
+        * admit.
       + inversion hw. subst.
         simpl. simpl in h. eapply ismono. 2: apply h.
         simpl. intros [tr x |] hh. 2: auto.
