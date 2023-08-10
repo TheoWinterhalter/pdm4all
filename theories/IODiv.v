@@ -1141,6 +1141,13 @@ Section IODiv.
     destruct t. all: reflexivity.
   Qed.
 
+  Ltac cofold f :=
+    lazymatch goal with
+    | |- context C[ cofix foo : _ := _ ] =>
+      let C' := context C[f] in
+      change C'
+    end.
+
   Lemma iwp_bind :
     ∀ A B (t : itree A) (f : A → itree B) w wf,
       iwp t w →
@@ -1159,59 +1166,44 @@ Section IODiv.
       apply hf.
     - inversion h.
       rewrite (itree_unfold_eq _ (isubst _ _)).
-      unfold isubst. unfold itree_unfold.
-      lazymatch goal with
-      | |- context C[ cofix foo : _ := _ ] =>
-        let C' := context C[isubst f] in
-        change C'
-      end.
+      unfold isubst. unfold itree_unfold. cofold (isubst f).
       rewrite <- bind_assoc.
       constructor.
       intro prf. eapply cih. noconf H1. apply H2.
     - inversion h.
       rewrite (itree_unfold_eq _ (isubst _ _)).
-      unfold isubst. unfold itree_unfold.
-      lazymatch goal with
-      | |- context C[ cofix foo : _ := _ ] =>
-        let C' := context C[isubst f] in
-        change C'
-      end.
+      unfold isubst. unfold itree_unfold. cofold (isubst f).
       rewrite <- bind_assoc.
       constructor.
       intro fd. eapply cih. noconf H1. apply H2.
     - inversion h.
       rewrite (itree_unfold_eq _ (isubst _ _)).
-      unfold isubst. unfold itree_unfold.
-      lazymatch goal with
-      | |- context C[ cofix foo : _ := _ ] =>
-        let C' := context C[isubst f] in
-        change C'
-      end.
+      unfold isubst. unfold itree_unfold. cofold (isubst f).
       rewrite <- bind_assoc.
       constructor.
       intro fc. eapply cih. noconf H1. apply H2.
     - inversion h.
       rewrite (itree_unfold_eq _ (isubst _ _)).
-      unfold isubst. unfold itree_unfold.
-      lazymatch goal with
-      | |- context C[ cofix foo : _ := _ ] =>
-        let C' := context C[isubst f] in
-        change C'
-      end.
+      unfold isubst. unfold itree_unfold. cofold (isubst f).
       rewrite <- bind_assoc.
       constructor.
       eapply cih. assumption.
     - inversion h.
       rewrite (itree_unfold_eq _ (isubst _ _)).
-      unfold isubst. unfold itree_unfold.
-      lazymatch goal with
-      | |- context C[ cofix foo : _ := _ ] =>
-        let C' := context C[isubst f] in
-        change C'
-      end.
+      unfold isubst. unfold itree_unfold. cofold (isubst f).
       rewrite <- bind_assoc.
       constructor.
       eapply cih. assumption.
+  Qed.
+
+  Lemma iterᵂ_unfold_eq :
+    ∀ J A (w : J → W (J + A)) (i : J),
+    iterᵂ w i = iter_expand w i (iterᵂ w).
+  Proof.
+    intros J A w i.
+    apply weq_eq. split.
+    - apply iterᵂ_unfold.
+    - apply iterᵂ_fold.
   Qed.
 
   Lemma iwp_to_itree_θ :
@@ -1222,13 +1214,25 @@ Section IODiv.
     induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
     - constructor.
     - simpl. constructor. assumption.
-    - revert i. cofix f. intro i.
-      simpl. apply iwp_bind. 2: eapply ih.
+    - simpl. apply iwp_bind. 2: eapply ih.
+      revert i. cofix f. intro i.
       rewrite (itree_unfold_eq _ (iiter _ _)).
-      unfold iiter. unfold bind. unfold Monad_itree.
-      (* unfold ibind.
-      unfold isubst. *)
-      admit.
+      unfold iiter. unfold itree_unfold. cofold iiter.
+      lazymatch goal with
+      | |- iwp ?t ?w =>
+        lazymatch t with
+        | context [Monad_itree.(bind) ?c ?f] =>
+          change (iwp (itree_unfold (Monad_itree.(bind) c f)) w) ;
+          rewrite <- (itree_unfold_eq _ (Monad_itree.(bind) c f))
+          (* fold (itree_unfold (Monad_itree.(bind) c f)) *)
+        end
+      end.
+      rewrite iterᵂ_unfold_eq.
+      apply iwp_bind.
+      + apply ihg.
+      + intros [j | x].
+        * constructor. apply f. Fail Guarded. (* because of iwp_bind *)
+        * constructor.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
