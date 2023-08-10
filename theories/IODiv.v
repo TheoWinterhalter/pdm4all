@@ -1273,6 +1273,11 @@ Section IODiv.
         simpl. intros [tr prf |] hh. 2: auto.
         eapply ih in hh. apply hh. eauto.
       + cbn - [iterᵂ] in h. unfold bindᵂ' in h.
+        rewrite iterᵂ_unfold_eq in h.
+        cbn - [iterᵂ] in h. unfold bindᵂ' in h.
+        eapply ihg in h as hh.
+        unfold θalt, θ_itree in hh.
+        specialize hh with (1 := iwp_to_itree_θ _ (g i)). (* useless! *)
         simpl in hw.
         inversion hw. all: subst.
         * admit.
