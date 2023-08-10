@@ -1194,7 +1194,7 @@ Section IODiv.
       rewrite <- bind_assoc.
       constructor.
       eapply cih. assumption.
-  Qed.
+  Defined.
 
   Lemma iterᵂ_unfold_eq :
     ∀ J A (w : J → W (J + A)) (i : J),
@@ -1231,12 +1231,12 @@ Section IODiv.
       apply iwp_bind.
       + apply ihg.
       + intros [j | x].
-        * constructor. apply f. Fail Guarded. (* because of iwp_bind *)
+        * constructor. apply f.
         * constructor.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
     - simpl. constructor. assumption.
-  Admitted.
+  Qed.
 
   Lemma equiv_θ :
     ∀ A (c : M A) post hist,
