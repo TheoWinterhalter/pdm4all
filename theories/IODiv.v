@@ -1238,7 +1238,7 @@ Section IODiv.
     - simpl. constructor. assumption.
   Qed.
 
-  (* Lemma iwp_bind_inv :
+(*   Lemma iwp_bind_inv :
     ∀ A B (t : itree A) (f : A → itree B) w,
       iwp (ibind t f) w →
       ∃ wt wf, iwp t wt ∧ (∀ x, iwp (f x) (wf x)) ∧ w = bindᵂ wt wf.
@@ -1260,6 +1260,22 @@ Section IODiv.
     -
     - *)
 
+(*   Lemma iwp_to_itree_inv :
+    ∀ A (c : M A) w,
+      iwp (to_itree c) w →
+      w = θ c.
+  Proof.
+    intros A c w h.
+    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
+    - inversion h. reflexivity.
+    - inversion h. subst. noconf H1.
+      simpl. f_equal. extensionality x.
+      eapply ih. eauto.
+    - apply weq_eq. intros post hist.
+    -
+    -
+    - *)
+
   Lemma equiv_θ :
     ∀ A (c : M A) post hist,
       val (θ c) post hist ↔ θalt c post hist.
@@ -1272,7 +1288,12 @@ Section IODiv.
         noconf H1. simpl. simpl in h. eapply ismono. 2: eapply h.
         simpl. intros [tr prf |] hh. 2: auto.
         eapply ih in hh. apply hh. eauto.
-      + cbn - [iterᵂ] in h. unfold bindᵂ' in h.
+      + simpl in hw.
+        (* unfold iiter in hw. unfold ibind in hw.
+        unfold isubst in hw. simpl in hw. unfold ibind in hw.
+        unfold isubst in hw. *)
+
+        cbn - [iterᵂ] in h. unfold bindᵂ' in h.
         rewrite iterᵂ_unfold_eq in h.
         cbn - [iterᵂ] in h. unfold bindᵂ' in h.
         eapply ihg in h as hh.
