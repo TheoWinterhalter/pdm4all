@@ -1211,7 +1211,7 @@ Section IODiv.
       iwp (to_itree c) (θ c).
   Proof.
     intros A c.
-    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih].
+    induction c as [ A x | A p k ih | A J C g ihg i k ih | A fp k ih | A fd k ih | A fd k ih ].
     - constructor.
     - simpl. constructor. assumption.
     - simpl. apply iwp_bind. 2: eapply ih.
