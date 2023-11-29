@@ -43,14 +43,14 @@ let req_code = ret_code
 
 let req_decode (pre : Type0) : decode_pre req_code =
   function
-  | Triv -> squash pre
+  | Triv -> pre
 
 (** Computation monad **)
 
 noeq
 type m (#code : Type u#a) (#dc : decode_pre code) (a : Type u#a) : Type u#a =
 | Ret : a -> m #code #dc a
-| Req : c:code -> (dc c -> m #code #dc a) -> m #code #dc a
+| Req : c:code -> (squash (dc c) -> m #code #dc a) -> m #code #dc a
 (* | Read : (int -> m #code #dc a) -> m #code #dc a
 | Write : int -> m #code #dc a -> m #code #dc a *)
 
@@ -62,12 +62,12 @@ let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc
   m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match fx with
   | Ret y -> Ret y
-  | Req c k -> Req (BR x c) (fun z -> m_lift (k z))
+  | Req c k -> Req (BR x c) (fun z -> m_lift (k ()))
 
 let rec m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match u with
   | Ret x -> m_lift (f x)
-  | Req c k -> Req (BL c) (fun z -> m_bind (k z) f)
+  | Req c k -> Req (BL c) (fun z -> m_bind (k ()) f)
 
 let m_req (p : Type0) : m #req_code #(req_decode p) (squash p) =
   Req Triv (fun h -> Ret h)
@@ -114,7 +114,7 @@ let w_req (p : Type0) : wp (squash p) =
 
 (** Effect observation **)
 
-(* let rec theta #ac #ad #a (u : m #ac #ad a) : wp a =
+let rec theta #ac #ad #a (u : m #ac #ad a) : wp a =
   match u with
   | Ret x -> w_return x
-  | Req c k -> w_bind (w_req (ad c)) (fun x -> theta (k x)) *)
+  | Req c k -> w_bind (w_req (ad c)) (fun x -> theta (k ()))
