@@ -13,26 +13,26 @@ open FStar.Tactics
 open FStar.Classical
 open FStar.Monotonic.Pure
 
-(** Precondition stores **)
+(** Precondition decoding **)
 
-noeq
-type prestore : Type u#1 =
-| Triv
-| PReq : pre:Type0 -> k:(pre -> prestore) -> prestore
+type decode_pre (code : Type0) =
+  code -> Type0
 
-let cur_pre (ps : prestore) : Type0 =
-  match ps with
-  | Triv -> True
-  | PReq pre k -> pre
-
-(* let req_k ps =
-  match ps with
-  | PReq pre k -> k
-  | _ -> Triv *)
+let bind_code #a (ac : Type0) (bc : a -> Type0) : Type0 =
+  (** This route also doesn't work because a : Type u#a
+      so the whole thing lives in Type u#a and not u#0.
+      This is a problem because we're going to want u#(max a b).
+  **)
+  admit ()
 
 (** Computation monad **)
 
 noeq
-type m (a : Type u#a) (pres : prestore) : Type u#a =
-| Ret : a -> m a pres
-| Req : (cur_pre pres -> m a pres) -> m a pres // pres again is not ok of course
+type m #code (#dc : decode_pre code) (a : Type u#a) : Type u#a =
+| Ret : a -> m #code #dc a
+| Req : c:code -> (dc c -> m #code #dc a) -> m #code #dc a
+| Read : (int -> m #code #dc a) -> m #code #dc a
+| Write : int -> m #code #dc a -> m #code #dc a
+
+(* let m_bind #ac #ad #bc #bd #a #b (c : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m b =
+  admit () *)
