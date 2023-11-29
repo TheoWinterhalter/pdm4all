@@ -118,3 +118,86 @@ let rec theta #ac #ad #a (u : m #ac #ad a) : wp a =
   match u with
   | Ret x -> w_return x
   | Req c k -> w_bind (w_req (ad c)) (fun x -> theta (k ()))
+
+(** Dijkstra monad **)
+
+let dm #ac #ad a (w : wp a) =
+  c : m #ac #ad a { theta c `wle` w }
+
+let d_ret #a (x : a) : dm a (w_return x) =
+  m_ret x
+
+let theta_bind #ac #ad #a #b #bc (#bd : a -> _)
+  (u : m #ac #ad a) (f : (x : a) -> m #(bc x) #(bd x) b) :
+  Lemma (theta (m_bind u f) `wle` w_bind (theta u) (fun x -> theta (f x)))
+= admit ()
+
+let d_bind #ac #ad #a #bc (#bd : a -> _) #b #w (#wf : a -> wp b)
+  (u : dm #ac #ad a w) (f : (x : a) -> dm #(bc x) #(bd x) b (wf x)) :
+  dm b (w_bind w wf) =
+  theta_bind u f ;
+  assume (theta (m_bind u f) `wle` w_bind w wf) ;
+  m_bind u f
+
+let d_req (p : Type0) : dm (squash p) (w_req p) =
+  m_req p
+
+let d_subcomp #ac #ad #a #w1 #w2 (u : dm #ac #ad a w1) :
+  Pure (dm a w2) (requires w1 `wle` w2) (ensures fun _ -> True)
+= u
+
+let w_if_then_else #a (w1 w2 : wp a) (b : bool) : wp a =
+  fun post hist -> (b ==> w1 post hist) /\ (~ b ==> w2 post hist)
+
+(* TODO: Maybe we need an if on codes and decoding functions. *)
+let if_then_else #ac #ad (a : Type) (w1 w2 : wp a) (f : dm #ac #ad a w1) (g : dm #ac #ad a w2) (b : bool) : Type =
+  dm #ac #ad a (w_if_then_else w1 w2 b)
+
+let elim_pure #a #w (f : unit -> PURE a w) :
+  Pure
+    a
+    (requires w (fun _ -> True))
+    (ensures fun r -> forall post. w post ==> post r)
+= elim_pure_wp_monotonicity_forall () ;
+  f ()
+
+unfold
+let wlift #a (w : pure_wp a) : wp a =
+  fun post hist -> w (post [])
+
+let as_requires_wlift #a (w : pure_wp a) :
+  Lemma (forall post hist. wlift w post hist ==> as_requires w)
+= assert (forall post (x : a). post x ==> True) ;
+  elim_pure_wp_monotonicity w ;
+  assert (forall post. w post ==> w (fun _ -> True)) ;
+  assert (forall post. (True ==> w post) ==> w (fun _ -> True))
+
+let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) : dm a (wlift w) =
+  as_requires_wlift w ;
+  d_bind #_ #_ #_ #_ #_ #_ #_ #(fun _ -> w_return (elim_pure #a #w f)) (d_req (as_requires w)) (fun _ ->
+    let r = elim_pure #a #w f in
+    let r' : dm a (w_return r) = d_ret r in
+    r'
+  )
+
+(** Recast return and bind so that they have effect-friendly types *)
+
+let ret a (x : a) : dm a (_w_return x) =
+  d_ret x
+
+let bind #ac #ad a #bc #bd b w wf u f : dm b (_w_bind w wf) =
+  d_bind #ac #ad #a #bc #bd #b #w #wf u f
+
+let subcomp #ac #ad a w1 w2 (c : dm #ac #ad a w1) :
+  Pure (dm a w2) (requires w1 `_wle` w2) (ensures fun _ -> True)
+= d_subcomp c
+
+(* reflectable reifiable total layered_effect {
+  NDw : a:Type -> w:wp a -> Effect
+  with
+    repr         = dm ;
+    return       = ret ;
+    bind         = bind ;
+    subcomp      = subcomp ;
+    if_then_else = if_then_else
+} *)
