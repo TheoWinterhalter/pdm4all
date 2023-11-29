@@ -3,6 +3,8 @@
   For this version, we stick the preconditions as a parameter of the monad and
   not in the data itself. This way, it can still live in the lowest universe.
 
+  TODO: For now, we only deal with a free monadic Pure, IO to come later.
+
 **)
 
 module IO
@@ -37,6 +39,12 @@ let bind_decode #a #ac ad (#bc : a -> Type0) (bd : (x:a -> decode_pre (bc x))) :
   | BL c -> ad c
   | BR x c -> bd x c
 
+let req_code = ret_code
+
+let req_decode (pre : Type0) : decode_pre req_code =
+  function
+  | Triv -> squash pre
+
 (** Computation monad **)
 
 noeq
@@ -46,6 +54,10 @@ type m (#code : Type u#a) (#dc : decode_pre code) (a : Type u#a) : Type u#a =
 (* | Read : (int -> m #code #dc a) -> m #code #dc a
 | Write : int -> m #code #dc a -> m #code #dc a *)
 
+let m_ret #a (x : a) : m #ret_code #ret_decode a =
+  Ret x
+
+(* Not very elegant to traverse the whole term for a noop *)
 let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc x) #(bd x) b) :
   m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match fx with
@@ -56,3 +68,6 @@ let rec m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f 
   match u with
   | Ret x -> m_lift (f x)
   | Req c k -> Req (BL c) (fun z -> m_bind (k z) f)
+
+let m_req (p : Type0) : m #req_code #(req_decode p) (squash p) =
+  Req Triv (fun h -> Ret h)
