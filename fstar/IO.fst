@@ -42,15 +42,17 @@ let bind_decode #a #ac ad (#bc : a -> Type0) (bd : (x:a -> decode_pre (bc x))) :
 noeq
 type m (#code : Type u#a) (#dc : decode_pre code) (a : Type u#a) : Type u#a =
 | Ret : a -> m #code #dc a
-(* | Req : c:code -> (dc c -> m #code #dc a) -> m #code #dc a
-| Read : (int -> m #code #dc a) -> m #code #dc a
+| Req : c:code -> (dc c -> m #code #dc a) -> m #code #dc a
+(* | Read : (int -> m #code #dc a) -> m #code #dc a
 | Write : int -> m #code #dc a -> m #code #dc a *)
 
-let m_lift a b ac ad (bc : a -> _) (bd : a -> _) (x : a) (fx : m #(bc x) #(bd x) b) :
+let rec m_lift a b ac ad (bc : a -> _) (bd : a -> _) (x : a) (fx : m #(bc x) #(bd x) b) :
   m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match fx with
   | Ret y -> Ret y
+  | Req c k -> Req (BR x c) (fun z -> m_lift _ _ _ _ _ _ _ (k z))
 
-let m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
+let rec m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match u with
   | Ret x -> m_lift a b ac ad bc bd x (f x)
+  | Req c k -> Req (BL c) (fun z -> m_bind (k z) f)
