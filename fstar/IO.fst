@@ -71,3 +71,50 @@ let rec m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f 
 
 let m_req (p : Type0) : m #req_code #(req_decode p) (squash p) =
   Req Triv (fun h -> Ret h)
+
+(** Specification monad **)
+
+type event =
+| ERead : int -> event
+| EWrite : int -> event
+
+type trace = list event
+
+let hist_append (tr : trace) (hist : trace) : trace =
+  tr @ rev hist
+
+let wpre = trace -> Type0
+let wpost a = trace -> a -> Type0
+
+let wp a = wpost a -> wpre
+
+unfold
+let _wle #a (w1 w2 : wp a) =
+  forall post hist. w2 post hist ==> w1 post hist
+
+let wle #a (w1 w2 : wp a) =
+  _wle w1 w2
+
+unfold
+let _w_return #a (x : a) : wp a =
+  fun post hist -> post [] x
+
+let w_return #a (x : a) : wp a =
+  _w_return x
+
+unfold
+let _w_bind #a #b (w : wp a) (wf : a -> wp b) : wp b =
+  fun post hist -> w (fun tr x -> wf x post (hist_append tr hist)) hist
+
+let w_bind #a #b (w : wp a) (wf : a -> wp b) : wp b =
+  _w_bind w wf
+
+let w_req (p : Type0) : wp (squash p) =
+  fun post hist -> p /\ post [] (Squash.get_proof p)
+
+(** Effect observation **)
+
+(* let rec theta #ac #ad #a (u : m #ac #ad a) : wp a =
+  match u with
+  | Ret x -> w_return x
+  | Req c k -> w_bind (w_req (ad c)) (fun x -> theta (k x)) *)
