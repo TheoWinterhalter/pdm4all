@@ -180,7 +180,7 @@ let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) :
     r'
   )
 
-(** Recast return and bind so that they have effect-friendly types *)
+(** Recast return and bind so that they have effect-friendly types **)
 
 let ret a (x : a) : dm a (_w_return x) =
   d_ret x
@@ -192,12 +192,24 @@ let subcomp #ac #ad a w1 w2 (c : dm #ac #ad a w1) :
   Pure (dm a w2) (requires w1 `_wle` w2) (ensures fun _ -> True)
 = d_subcomp c
 
-(* reflectable reifiable total layered_effect {
-  NDw : a:Type -> w:wp a -> Effect
-  with
-    repr         = dm ;
+let _dm a ac ad w =
+  dm #ac #ad a w
+
+(** Effect **)
+
+(** Currently this fails because it wants only one universe, but I can't set
+    the two universes to be the same.
+**)
+(* total
+reifiable
+reflectable
+effect {
+  IOw (a : Type u#a) (ac : Type u#a) (ad : decode_pre ac) (w : wp a)
+  with {
+    repr         = _dm ;
     return       = ret ;
     bind         = bind ;
     subcomp      = subcomp ;
     if_then_else = if_then_else
+  }
 } *)
