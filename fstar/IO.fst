@@ -33,7 +33,7 @@ type bind_code (#a : Type u#a) (ac : Type u#a) (bc : a -> Type u#b) : Type u#(ma
 | BL : ac -> bind_code #a ac bc
 | BR : x:a -> bc x -> bind_code #a ac bc
 
-let bind_decode #a #ac ad (#bc : a -> Type0) (bd : (x:a -> decode_pre (bc x))) :
+let bind_decode #a #ac ad (#bc : a -> _) (bd : (x:a -> decode_pre (bc x))) :
   decode_pre (bind_code #a ac bc)
 = function
   | BL c -> ad c
@@ -64,7 +64,7 @@ let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc
   | Ret y -> Ret y
   | Req c k -> Req (BR x c) (fun z -> m_lift (k ()))
 
-let rec m_bind #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
+let rec m_bind (#a : Type u#a) (#b : Type u#b) (#ac : Type u#a) #ad (#bc : a -> Type u#b) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b = (* Problem here!! *)
   match u with
   | Ret x -> m_lift (f x)
   | Req c k -> Req (BL c) (fun z -> m_bind (k ()) f)
@@ -127,12 +127,12 @@ let dm #ac #ad a (w : wp a) =
 let d_ret #a (x : a) : dm a (w_return x) =
   m_ret x
 
-let theta_bind #ac #ad #a #b #bc (#bd : a -> _)
+let theta_bind (#ac : Type u#a) #ad (#a : Type u#a) (#b : Type u#b) (#bc : a -> Type u#b) (#bd : a -> _)
   (u : m #ac #ad a) (f : (x : a) -> m #(bc x) #(bd x) b) :
   Lemma (theta (m_bind u f) `wle` w_bind (theta u) (fun x -> theta (f x)))
 = admit ()
 
-let d_bind #ac #ad #a #bc (#bd : a -> _) #b #w (#wf : a -> wp b)
+let d_bind (#ac : Type u#a) #ad (#a : Type u#a) (#bc : _ -> Type u#b) (#bd : a -> _) (#b : Type u#b) #w (#wf : a -> wp b)
   (u : dm #ac #ad a w) (f : (x : a) -> dm #(bc x) #(bd x) b (wf x)) :
   dm b (w_bind w wf) =
   theta_bind u f ;
@@ -185,7 +185,7 @@ let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) :
 let ret a (x : a) : dm a (_w_return x) =
   d_ret x
 
-let bind #ac #ad a #bc #bd b w wf u f : dm b (_w_bind w wf) =
+let bind (ac : Type u#a) ad (a : Type u#a) (bc : Type u#b) bd (b : Type u#b) w wf u f : dm b (_w_bind w wf) =
   d_bind #ac #ad #a #bc #bd #b #w #wf u f
 
 let subcomp #ac #ad a w1 w2 (c : dm #ac #ad a w1) :
