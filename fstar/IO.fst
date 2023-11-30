@@ -200,11 +200,16 @@ let _dm a ac ad w =
 (** Currently this fails because it wants only one universe, but I can't set
     the two universes to be the same.
 **)
-(* total
+(** Hack to force universes to be the same **)
+unfold
+let _decode_pre (a : Type u#a) (ac : Type u#a) =
+  decode_pre ac
+
+total
 reifiable
 reflectable
 effect {
-  IOw (a : Type u#a) (ac : Type u#a) (ad : decode_pre ac) (w : wp a)
+  IOw (a : Type) (ac : Type) (ad : _decode_pre a ac) (w : wp a)
   with {
     repr         = _dm ;
     return       = ret ;
@@ -212,4 +217,4 @@ effect {
     subcomp      = subcomp ;
     if_then_else = if_then_else
   }
-} *)
+}
