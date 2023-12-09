@@ -15,56 +15,80 @@ open FStar.Tactics
 open FStar.Classical
 open FStar.Monotonic.Pure
 
+(** Positions in the free monad **)
+
+type position =
+| Root
+| PReq : position -> position
+
 (** Precondition decoding **)
 
-type decode_pre (code : Type u#a) =
-  code -> Type0
+type decode_pre =
+  position -> Type0
 
-(* Basically unit *)
-type ret_code : Type u#a =
-| Triv
-
-let ret_decode : decode_pre ret_code =
-  function
-  | Triv -> True
-
-noeq
-type bind_code (#a : Type u#a) (ac : Type u#a) (bc : a -> Type u#b) : Type u#(max a b) =
-| BL : ac -> bind_code #a ac bc
-| BR : x:a -> bc x -> bind_code #a ac bc
-
-let bind_decode #a #ac ad (#bc : a -> _) (bd : (x:a -> decode_pre (bc x))) :
-  decode_pre (bind_code #a ac bc)
-= function
-  | BL c -> ad c
-  | BR x c -> bd x c
-
-let req_code = ret_code
-
-let req_decode (pre : Type0) : decode_pre req_code =
-  function
-  | Triv -> pre
+let post_req (dc : decode_pre) : decode_pre =
+  fun pos -> dc (PReq pos)
 
 (** Computation monad **)
 
 noeq
-type m (#code : Type u#a) (#dc : decode_pre code) (a : Type u#a) : Type u#a =
-| Ret : a -> m #code #dc a
-| Req : c:code -> (squash (dc c) -> m #code #dc a) -> m #code #dc a
+type m (dc : decode_pre) (a : Type u#a) : Type u#a =
+| Ret : a -> m dc a
+| Req : (squash (dc Root) -> m (post_req dc) a) -> m dc a
 (* | Read : (int -> m #code #dc a) -> m #code #dc a
 | Write : int -> m #code #dc a -> m #code #dc a *)
 
-let m_ret #a (x : a) : m #ret_code #ret_decode a =
+(** Positions and preconditions **)
+
+let rec pos_in #a #dc (pos : position) (u : m dc a) =
+  match pos, u with
+  | Root, _ -> True
+  | PReq p, Req k -> forall (h : dc Root). p `pos_in` (k ())
+  | _, _ -> False
+
+let rec ret_in #a #dc (pos : position) (u : m dc a) =
+  match pos, u with
+  | _, Ret x -> True
+  | PReq p, Req k -> forall (h : dc Root). p `ret_in` (k ())
+  | _, _ -> False
+
+let rec ret_val #a #dc pos (u : m dc a) :
+  Pure a (requires pos `ret_in` u) (ensures fun _ -> True)
+= match pos, u with
+  | _, Ret x -> x
+  | PReq p, Req k -> magic() // unclear how to do this, maybe with and instead of forall above?
+
+let rec nextpos #a #dc pos (u : m dc a) :
+  Pure position (requires pos `ret_in` u) (ensures fun _ -> True)
+= match pos, u with
+  | _, Ret x -> pos
+  | PReq p, Req k -> magic() // unclear how to do this, maybe with and instead of forall above?
+
+let ret_decode : decode_pre =
+  fun _ -> True
+
+let bind_decode (#a : Type u#a) (ad : decode_pre) (u : m ad a) (bd : a -> decode_pre) :
+  decode_pre
+= fun pos ->
+    (pos `pos_in` u ==> ad pos) /\
+    (pos `ret_in` u ==> bd (ret_val pos u) (nextpos pos u))
+
+let req_decode (pre : Type0) : decode_pre =
+  fun _ -> pre
+
+let m_ret #a (x : a) : m ret_decode a =
   Ret x
 
 (* Not very elegant to traverse the whole term for a noop *)
-let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc x) #(bd x) b) :
+(* let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc x) #(bd x) b) :
   m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match fx with
   | Ret y -> Ret y
-  | Req c k -> Req (BR x c) (fun z -> m_lift (k ()))
+  | Req c k -> Req (BR x c) (fun z -> m_lift (k ())) *)
 
-let rec m_bind (#a : Type u#a) (#b : Type u#b) (#ac : Type u#a) #ad (#bc : a -> Type u#b) (#bd : a -> _) (u : m #ac #ad a) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b = (* Problem here!! *)
+// TODO
+
+let rec m_bind (#a : Type u#a) (#b : Type u#b) #ad (#ad : a -> decode_pre) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
   match u with
   | Ret x -> m_lift (f x)
   | Req c k -> Req (BL c) (fun z -> m_bind (k ()) f)
