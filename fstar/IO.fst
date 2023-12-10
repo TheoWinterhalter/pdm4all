@@ -49,20 +49,20 @@ let rec pos_in #a #dc (pos : position) (u : m dc a) =
 let rec ret_in #a #dc (pos : position) (u : m dc a) =
   match pos, u with
   | _, Ret x -> True
-  | PReq p, Req k -> forall (h : dc Root). p `ret_in` (k ())
+  | PReq p, Req k -> dc Root /\ p `ret_in` (k ())
   | _, _ -> False
 
 let rec ret_val #a #dc pos (u : m dc a) :
   Pure a (requires pos `ret_in` u) (ensures fun _ -> True)
 = match pos, u with
   | _, Ret x -> x
-  | PReq p, Req k -> magic() // unclear how to do this, maybe with and instead of forall above?
+  | PReq p, Req k -> ret_val p (k ())
 
 let rec nextpos #a #dc pos (u : m dc a) :
   Pure position (requires pos `ret_in` u) (ensures fun _ -> True)
 = match pos, u with
   | _, Ret x -> pos
-  | PReq p, Req k -> magic() // unclear how to do this, maybe with and instead of forall above?
+  | PReq p, Req k -> nextpos p (k ())
 
 let ret_decode : decode_pre =
   fun _ -> True
@@ -80,18 +80,23 @@ let m_ret #a (x : a) : m ret_decode a =
   Ret x
 
 (* Not very elegant to traverse the whole term for a noop *)
-(* let rec m_lift #a #b #ac #ad (#bc : a -> _) (#bd : a -> _) (#x : a) (fx : m #(bc x) #(bd x) b) :
-  m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
-  match fx with
-  | Ret y -> Ret y
-  | Req c k -> Req (BR x c) (fun z -> m_lift (k ())) *)
+let rec m_lift_dec #a #dec #dec' (u : m dec a) :
+  Pure (m dec' a) (requires forall pos. dec' pos ==> dec pos) (ensures fun _ -> True)
+= match u with
+  | Ret x -> Ret x
+  | Req k -> Req (fun z -> m_lift_dec (k ()))
 
-// TODO
+let m_lift #a #b #ad (#bd : a -> _) (#x : a) (fx : m (bd x) b) :
+  m (bind_decode ad (Ret x) bd) b =
+  m_lift_dec fx
 
-let rec m_bind (#a : Type u#a) (#b : Type u#b) #ad (#ad : a -> decode_pre) (f : (x:a -> m #(bc x) #(bd x) b)) : m #(bind_code ac bc) #(bind_decode #a #ac ad #bc bd) b =
-  match u with
+(* Quite bad that we need to lift everywhere *)
+let rec m_bind (#a : Type u#a) (#b : Type u#b) #ad (#bd : a -> decode_pre)
+  (u : m ad a) (f : (x:a -> m (bd x) b)) :
+  m (bind_decode ad u bd) b
+= match u with
   | Ret x -> m_lift (f x)
-  | Req c k -> Req (BL c) (fun z -> m_bind (k ()) f)
+  | Req k -> Req (fun z -> m_lift #_ #_ #(post_req (bind_decode ad (Req k) bd)) (m_bind (k ()) f))
 
 let m_req (p : Type0) : m #req_code #(req_decode p) (squash p) =
   Req Triv (fun h -> Ret h)
