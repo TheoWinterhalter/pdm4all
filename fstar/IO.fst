@@ -182,9 +182,11 @@ let d_subcomp #a #ad1 #ad2 #w1 #w2 (u : dm a ad1 w1) :
 let w_if_then_else #a (w1 w2 : wp a) (b : bool) : wp a =
   fun post hist -> (b ==> w1 post hist) /\ (~ b ==> w2 post hist)
 
-(* TODO: Probably we need an if on decoding functions. *)
-let if_then_else (a : Type) #ad (w1 w2 : wp a) (f : dm a ad w1) (g : dm a ad w2) (b : bool) : Type =
-  dm a ad (w_if_then_else w1 w2 b)
+let if_decode (ad1 ad2 : decode_pre) (b : bool) : decode_pre =
+  fun pos -> (b ==> ad1 pos) /\ (~ b ==> ad2 pos)
+
+let if_then_else (a : Type) ad1 ad2 (w1 w2 : wp a) (f : dm a ad1 w1) (g : dm a ad2 w2) (b : bool) : Type =
+  dm a (if_decode ad1 ad2 b) (w_if_then_else w1 w2 b)
 
 let elim_pure #a #w (f : unit -> PURE a w) :
   Pure
