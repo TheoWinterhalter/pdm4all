@@ -217,10 +217,10 @@ let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) :
 
 (** Recast return and bind so that they have effect-friendly types **)
 
-let ret a (x : a) : dm a _ (_w_return x) =
+let ret a (x : a) : dm a ret_decode (_w_return x) =
   d_ret x
 
-let bind a b ad bd w wf u f : dm b _ (_w_bind w wf) =
+let bind a b ad bd w wf (u : dm a ad w) (f : (x : a) -> dm b (bd x) (wf x)) : dm b (bind_decode ad u bd) (_w_bind w wf) =
   d_bind #a #b #ad #bd #w #wf u f
 
 let subcomp a ad1 ad2 w1 w2 (c : dm a ad1 w1) :
