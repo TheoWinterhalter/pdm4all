@@ -79,9 +79,12 @@ let req_decode (pre : Type0) : decode_pre =
 let m_ret #a (x : a) : m ret_decode a =
   Ret x
 
+let dle (d e : decode_pre) =
+  forall pos. e pos ==> d pos
+
 (* Not very elegant to traverse the whole term for a noop *)
 let rec m_lift_dec #a #dec #dec' (u : m dec a) :
-  Pure (m dec' a) (requires forall pos. dec' pos ==> dec pos) (ensures fun _ -> True)
+  Pure (m dec' a) (requires dec `dle` dec') (ensures fun _ -> True)
 = match u with
   | Ret x -> Ret x
   | Req k -> Req (fun z -> m_lift_dec (k ()))
@@ -96,10 +99,10 @@ let rec m_bind (#a : Type u#a) (#b : Type u#b) #ad (#bd : a -> decode_pre)
   m (bind_decode ad u bd) b
 = match u with
   | Ret x -> m_lift (f x)
-  | Req k -> Req (fun z -> m_lift #_ #_ #(post_req (bind_decode ad (Req k) bd)) (m_bind (k ()) f))
+  | Req k -> Req (fun z -> m_lift_dec (m_bind (k ()) f))
 
-let m_req (p : Type0) : m #req_code #(req_decode p) (squash p) =
-  Req Triv (fun h -> Ret h)
+let m_req (p : Type0) : m (req_decode p) (squash p) =
+  Req (fun h -> Ret h)
 
 (** Specification monad **)
 
@@ -143,44 +146,45 @@ let w_req (p : Type0) : wp (squash p) =
 
 (** Effect observation **)
 
-let rec theta #ac #ad #a (u : m #ac #ad a) : wp a =
+let rec theta #ad #a (u : m ad a) : wp a =
   match u with
   | Ret x -> w_return x
-  | Req c k -> w_bind (w_req (ad c)) (fun x -> theta (k ()))
+  | Req k -> w_bind (w_req (ad Root)) (fun x -> theta (k ()))
 
 (** Dijkstra monad **)
 
-let dm #ac #ad a (w : wp a) =
-  c : m #ac #ad a { theta c `wle` w }
+let dm a ad (w : wp a) =
+  c : m ad a { theta c `wle` w }
 
-let d_ret #a (x : a) : dm a (w_return x) =
+let d_ret #a (x : a) : dm a ret_decode (w_return x) =
   m_ret x
 
-let theta_bind (#ac : Type u#a) #ad (#a : Type u#a) (#b : Type u#b) (#bc : a -> Type u#b) (#bd : a -> _)
-  (u : m #ac #ad a) (f : (x : a) -> m #(bc x) #(bd x) b) :
+let theta_bind (#a : Type u#a) (#b : Type u#b) #ad (#bd : a -> _)
+  (u : m ad a) (f : (x : a) -> m (bd x) b) :
   Lemma (theta (m_bind u f) `wle` w_bind (theta u) (fun x -> theta (f x)))
 = admit ()
 
-let d_bind (#ac : Type u#a) #ad (#a : Type u#a) (#bc : _ -> Type u#b) (#bd : a -> _) (#b : Type u#b) #w (#wf : a -> wp b)
-  (u : dm #ac #ad a w) (f : (x : a) -> dm #(bc x) #(bd x) b (wf x)) :
-  dm b (w_bind w wf) =
+let d_bind (#a : Type u#a) (#b : Type u#b) #ad (#bd : a -> _) #w (#wf : a -> wp b)
+  (u : dm a ad w) (f : (x : a) -> dm b (bd x) (wf x)) :
+  dm b _ (w_bind w wf) =
   theta_bind u f ;
   assume (theta (m_bind u f) `wle` w_bind w wf) ;
   m_bind u f
 
-let d_req (p : Type0) : dm (squash p) (w_req p) =
+let d_req (p : Type0) : dm (squash p) _ (w_req p) =
   m_req p
 
-let d_subcomp #ac #ad #a #w1 #w2 (u : dm #ac #ad a w1) :
-  Pure (dm a w2) (requires w1 `wle` w2) (ensures fun _ -> True)
-= u
+let d_subcomp #a #ad1 #ad2 #w1 #w2 (u : dm a ad1 w1) :
+  Pure (dm a ad2 w2) (requires ad1 `dle` ad2 /\ w1 `wle` w2) (ensures fun _ -> True)
+= admit () ;
+  m_lift_dec u
 
 let w_if_then_else #a (w1 w2 : wp a) (b : bool) : wp a =
   fun post hist -> (b ==> w1 post hist) /\ (~ b ==> w2 post hist)
 
-(* TODO: Maybe we need an if on codes and decoding functions. *)
-let if_then_else #ac #ad (a : Type) (w1 w2 : wp a) (f : dm #ac #ad a w1) (g : dm #ac #ad a w2) (b : bool) : Type =
-  dm #ac #ad a (w_if_then_else w1 w2 b)
+(* TODO: Probably we need an if on decoding functions. *)
+let if_then_else (a : Type) #ad (w1 w2 : wp a) (f : dm a ad w1) (g : dm a ad w2) (b : bool) : Type =
+  dm a ad (w_if_then_else w1 w2 b)
 
 let elim_pure #a #w (f : unit -> PURE a w) :
   Pure
@@ -201,46 +205,35 @@ let as_requires_wlift #a (w : pure_wp a) :
   assert (forall post. w post ==> w (fun _ -> True)) ;
   assert (forall post. (True ==> w post) ==> w (fun _ -> True))
 
-let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) : dm a (wlift w) =
+let lift_pure (a : Type) (w : pure_wp a) (f:(eqtype_as_type unit -> PURE a w)) : dm a _ (wlift w) =
   as_requires_wlift w ;
-  d_bind #_ #_ #_ #_ #_ #_ #_ #(fun _ -> w_return (elim_pure #a #w f)) (d_req (as_requires w)) (fun _ ->
+  d_bind #_ #_ #_ #_ #_ #(fun _ -> w_return (elim_pure #a #w f)) (d_req (as_requires w)) (fun _ ->
     let r = elim_pure #a #w f in
-    let r' : dm a (w_return r) = d_ret r in
+    let r' : dm a _ (w_return r) = d_ret r in
     r'
   )
 
 (** Recast return and bind so that they have effect-friendly types **)
 
-let ret a (x : a) : dm a (_w_return x) =
+let ret a (x : a) : dm a _ (_w_return x) =
   d_ret x
 
-let bind (ac : Type u#a) ad (a : Type u#a) (bc : Type u#b) bd (b : Type u#b) w wf u f : dm b (_w_bind w wf) =
-  d_bind #ac #ad #a #bc #bd #b #w #wf u f
+let bind a b ad bd w wf u f : dm b _ (_w_bind w wf) =
+  d_bind #a #b #ad #bd #w #wf u f
 
-let subcomp #ac #ad a w1 w2 (c : dm #ac #ad a w1) :
-  Pure (dm a w2) (requires w1 `_wle` w2) (ensures fun _ -> True)
+let subcomp a ad1 ad2 w1 w2 (c : dm a ad1 w1) :
+  Pure (dm a ad2 w2) (requires ad1 `dle` ad2 /\ w1 `_wle` w2) (ensures fun _ -> True)
 = d_subcomp c
 
-let _dm a ac ad w =
-  dm #ac #ad a w
-
 (** Effect **)
-
-(** Currently this fails because it wants only one universe, but I can't set
-    the two universes to be the same.
-**)
-(** Hack to force universes to be the same **)
-unfold
-let _decode_pre (a : Type u#a) (ac : Type u#a) =
-  decode_pre ac
 
 total
 reifiable
 reflectable
 effect {
-  IOw (a : Type) (ac : Type) (ad : _decode_pre a ac) (w : wp a)
+  IOw (a : Type) (ad : decode_pre) (w : wp a)
   with {
-    repr         = _dm ;
+    repr         = dm ;
     return       = ret ;
     bind         = bind ;
     subcomp      = subcomp ;
