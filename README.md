@@ -5,7 +5,7 @@ construction.
 
 ## Requirements and build
 
-Should work fine with Coq 8.14 and Equations 1.3.
+Should work fine with Coq 8.14-8.19 and Equations 1.3.
 
 Just build with `make`.
 
